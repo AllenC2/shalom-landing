@@ -1,0 +1,20 @@
+{
+  "name": "shalom-landing",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node --watch --env-file=.env server/index.js",
+    "start": "node server/index.js",
+    "hash-password": "node server/hash-password.js"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.14.1",
+    "bcryptjs": "^3.0.2",
+    "chart.js": "^4.5.1",
+    "chartjs-plugin-datalabels": "^2.2.0",
+    "hono": "^4.7.5"
+  }
+}

@@ -1,0 +1,15 @@
+node_modules
+npm-debug.log
+.env
+.DS_Store
+.git
+.react-router
+.webstudio
+app
+content
+build
+dist
+README.md
+*.md
+assets/uploads/*
+!assets/uploads/.gitkeep

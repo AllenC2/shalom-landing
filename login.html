@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Shalom — Acceso</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="admin.css" />
+  </head>
+  <body class="admin login-page">
+    <main class="login-card">
+      <img class="login-logo" src="assets/logo-shalom.png" alt="SHALOM Servicios Funerarios" width="204" height="60" />
+      <h1>Administración</h1>
+      <form id="login-form" class="login-form">
+        <label>
+          Usuario
+          <input name="username" type="text" autocomplete="username" required />
+        </label>
+        <label>
+          Contraseña
+          <input name="password" type="password" autocomplete="current-password" required />
+        </label>
+        <p class="form-error" id="login-error" hidden>Usuario o contraseña incorrectos.</p>
+        <button class="submit" type="submit">Entrar</button>
+      </form>
+    </main>
+    <script>
+      const form = document.querySelector("#login-form");
+      const error = document.querySelector("#login-error");
+      const next = new URLSearchParams(location.search).get("next") || "/admin";
+
+      fetch("/api/me", { credentials: "same-origin" })
+        .then((response) => {
+          if (response.ok) location.replace(next);
+        })
+        .catch(() => {});
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        error.hidden = true;
+        const data = new FormData(form);
+        const response = await fetch("/api/login", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: data.get("username"),
+            password: data.get("password"),
+          }),
+        });
+        if (!response.ok) {
+          error.hidden = false;
+          return;
+        }
+        location.replace(next.startsWith("/") ? next : "/admin");
+      });
+    </script>
+  </body>
+</html>

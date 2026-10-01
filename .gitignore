@@ -1,0 +1,23 @@
+node_modules/
+.env
+.DS_Store
+*.log
+
+# Runtime / secrets
+data/admin.json
+data/analytics.json
+assets/uploads/*
+!assets/uploads/.gitkeep
+
+# Legacy / local tooling
+.react-router/
+.webstudio/
+app/
+content/
+build/
+dist/
+.vite/
+*.local
+
+tsconfig.json
+vite.config.ts
