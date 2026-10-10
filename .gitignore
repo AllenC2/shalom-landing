@@ -6,8 +6,10 @@ node_modules/
 # Runtime / secrets
 data/admin.json
 data/analytics.json
+data/comments.json
 assets/uploads/*
 !assets/uploads/.gitkeep
+!data/.gitkeep
 
 # Legacy / local tooling
 .react-router/

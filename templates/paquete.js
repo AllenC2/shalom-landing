@@ -19,14 +19,38 @@ ShalomTemplates.define({
   },
   render(root, pkg, mode) {
     const { el, text, imageFrame, addControl, removeControl } = ShalomTemplates;
+    const theme = window.ShalomModel.packageTheme(pkg);
+    const buyMod = window.ShalomModel.packageBuyModifier(pkg);
     const article = el("article", "package");
 
     const back = el("a", "back");
-    back.href = mode.edit ? "#/paquetes" : "#servicios";
-    back.textContent = "Servicios";
+    back.href = "#/paquetes";
+    back.textContent = "Paquetes";
+
+    if (mode.edit) {
+      const themes = el("div", "theme-picker");
+      const label = el("p", "theme-picker-label");
+      label.textContent = "Tema / color";
+      const swatches = el("div", "theme-picker-swatches");
+      [
+        ["sand", "Blanco"],
+        ["gold", "Dorado"],
+        ["luxury", "Café"],
+      ].forEach(([id, name]) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `theme-swatch theme-swatch-${id}${theme === id ? " is-active" : ""}`;
+        button.dataset.theme = id;
+        button.setAttribute("aria-pressed", theme === id ? "true" : "false");
+        button.textContent = name;
+        swatches.append(button);
+      });
+      themes.append(label, swatches);
+      article.append(themes);
+    }
 
     const layout = el("div", "package-layout");
-    const buy = el("div", `package-buy${pkg.featured ? " is-gold" : ""}`);
+    const buy = el("div", `package-buy${buyMod ? ` ${buyMod}` : ""}`);
     const prices = el("div", "pkg-prices");
     prices.append(
       text("p", "pkg-price", "price", pkg.price),
@@ -154,7 +178,8 @@ ShalomTemplates.define({
     });
     close.append(closeKicker, text("h2", "", "closing", pkg.closing, { multiline: true }), facts);
 
-    article.append(back, layout, intro, sections);
+    article.prepend(back);
+    article.append(layout, intro, sections);
     if (mode.edit) {
       const more = el("div", "editor-actions");
       more.append(addControl("Agregar sección", "sections", { title: "Nueva sección", text: "", items: [] }, {

@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
+import sharp from "sharp";
 import { clearSession, changePassword, readSession, requireAdmin, verifyLogin, writeSession } from "./auth.js";
 import { listTemplates, readContent, ROOT, writeContent } from "./content.js";
 import { getPublicMailSettings, setMailSettings } from "./settings.js";
@@ -14,6 +15,14 @@ import {
   parseAnalyticsEvent,
   recordAnalyticsEvent,
 } from "./analytics.js";
+import {
+  checkCommentRateLimit,
+  createComment,
+  listAllComments,
+  listApprovedComments,
+  parseCommentPayload,
+  updateCommentStatus,
+} from "./comments.js";
 
 const PORT = Number(process.env.PORT || 3000);
 const UPLOADS = path.join(ROOT, "assets", "uploads");
@@ -98,6 +107,32 @@ app.get("/api/analytics", requireAdmin, async (c) => {
   return c.json(await getAnalyticsSummary(weeksBack));
 });
 
+app.get("/api/comments", async (c) => {
+  return c.json({ ok: true, comments: await listApprovedComments() });
+});
+
+app.post("/api/comments", async (c) => {
+  const limited = checkCommentRateLimit(c);
+  if (!limited.ok) return c.json({ error: limited.error }, 429);
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = parseCommentPayload(body);
+  if (parsed.spam) return c.json({ ok: true });
+  if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+  await createComment(parsed.data);
+  return c.json({ ok: true });
+});
+
+app.get("/api/comments/all", requireAdmin, async (c) => {
+  return c.json({ ok: true, comments: await listAllComments() });
+});
+
+app.patch("/api/comments/:id", requireAdmin, async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const result = await updateCommentStatus(c.req.param("id"), String(body.status || ""));
+  if (!result.ok) return c.json({ error: result.error }, 400);
+  return c.json({ ok: true, comment: result.item });
+});
+
 app.post("/api/upload", requireAdmin, async (c) => {
   const body = await c.req.parseBody();
   const file = body.file;
@@ -110,20 +145,26 @@ app.post("/api/upload", requireAdmin, async (c) => {
   if (!buffer.length) return c.json({ error: "Archivo vacío" }, 400);
   if (buffer.length > 12 * 1024 * 1024) return c.json({ error: "La imagen supera 12 MB" }, 400);
 
-  const fromName = path.extname(String(file.name || "")).toLowerCase();
-  const byType = {
-    "image/jpeg": ".jpg",
-    "image/png": ".png",
-    "image/webp": ".webp",
-    "image/gif": ".gif",
-  };
-  const ext = [".jpg", ".jpeg", ".png", ".webp", ".gif"].includes(fromName)
-    ? (fromName === ".jpeg" ? ".jpg" : fromName)
-    : (byType[type] || ".jpg");
-  const filename = `${Date.now()}-${randomBytes(4).toString("hex")}${ext}`;
+  let output;
+  try {
+    output = await sharp(buffer)
+      .rotate()
+      .resize({
+        width: 1600,
+        height: 1600,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .webp({ quality: 82, effort: 4 })
+      .toBuffer();
+  } catch {
+    return c.json({ error: "No se pudo optimizar la imagen" }, 400);
+  }
+
+  const filename = `${Date.now()}-${randomBytes(4).toString("hex")}.webp`;
   await mkdir(UPLOADS, { recursive: true });
-  await writeFile(path.join(UPLOADS, filename), buffer);
-  return c.json({ url: `assets/uploads/${filename}` });
+  await writeFile(path.join(UPLOADS, filename), output);
+  return c.json({ url: `assets/uploads/${filename}`, bytes: output.length });
 });
 
 app.get("/api/content", async (c) => {

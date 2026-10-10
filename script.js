@@ -1,24 +1,14 @@
 let siteContent = null;
-let slides = [];
 let packages = {};
 let templatesReady = false;
 
 function useContent(content) {
   siteContent = content;
-  slides = content.inicio.slides.map((slide) => ({ ...slide }));
   const visible = content.packages.filter((pkg) => !pkg.hidden);
   packages = Object.fromEntries(visible.map((pkg) => [pkg.id, pkg]));
   renderCards();
   fillInicio();
   fillProgramSelect();
-}
-
-function setMultiline(node, value) {
-  node.replaceChildren();
-  String(value || "").split("\n").forEach((line, index) => {
-    if (index) node.append(document.createElement("br"));
-    node.append(document.createTextNode(line));
-  });
 }
 
 function cardMark() {
@@ -34,7 +24,7 @@ function renderCards() {
   if (!scroller || !siteContent) return;
   scroller.replaceChildren(...siteContent.packages.filter((pkg) => !pkg.hidden).map((pkg) => {
     const article = document.createElement("article");
-    article.className = `card ${pkg.featured ? "card-lime" : "card-sand"}`;
+    article.className = `card ${window.ShalomModel.packageCardClass(pkg)}`;
     article.dataset.href = `#/${pkg.id}`;
 
     const top = document.createElement("div");
@@ -82,15 +72,30 @@ function renderCards() {
 function fillInicio() {
   if (!siteContent) return;
   const inicio = siteContent.inicio;
-  const about = document.querySelector("#about");
+  const about = document.querySelector("#home-view .about");
   if (about) {
-    about.querySelector(".eyebrow").textContent = inicio.about.eyebrow;
-    about.querySelector("h2").textContent = inicio.about.title;
-    about.querySelector(".lede").textContent = inicio.about.lede;
+    about.classList.add("about-hero");
+    const brand = about.querySelector(".about-brand");
+    if (brand) brand.textContent = inicio.about.brand || "Servicios Funerarios Shalom";
+    const title = about.querySelector(".about-title, h1, h2");
+    if (title) title.textContent = inicio.about.title;
+    const lede = about.querySelector(".lede");
+    if (lede) lede.textContent = inicio.about.lede;
     const photo = about.querySelector(".about-photo img");
     if (photo) {
       photo.src = inicio.about.image || "assets/about-equipo.webp";
       photo.alt = inicio.about.alt || "Equipo de Servicios Funerarios Shalom";
+    }
+    const packages = about.querySelector(".about-cta-packages");
+    if (packages) packages.textContent = inicio.about.ctaPackages || "Ver paquetes";
+    const whatsapp = about.querySelector(".about-cta-whatsapp");
+    if (whatsapp) {
+      const label = inicio.about.ctaWhatsapp || "Enviar un Whatsapp";
+      const icon = whatsapp.querySelector("svg");
+      whatsapp.replaceChildren();
+      if (icon) whatsapp.append(icon);
+      whatsapp.append(document.createTextNode(label));
+      whatsapp.href = inicio.about.whatsappHref || "https://wa.me/523313383886";
     }
   }
 
@@ -102,29 +107,55 @@ function fillInicio() {
       incluyeEyebrow.hidden = !inicio.incluye.eyebrow;
     }
     incluye.querySelector("h2").textContent = inicio.incluye.title;
-    incluye.querySelector(".coach-grid").replaceChildren(...inicio.incluye.items.map((item) => {
-      const article = document.createElement("article");
-      article.className = "coach";
-      const index = document.createElement("p");
-      index.className = "coach-index";
-      index.textContent = item.index;
-      article.append(index);
-      if (item.title) {
-        const title = document.createElement("h3");
-        title.textContent = item.title;
-        article.append(title);
-      }
-      if (item.role) {
-        const role = document.createElement("p");
-        role.className = "role";
-        role.textContent = item.role;
-        article.append(role);
-      }
-      const text = document.createElement("p");
-      text.textContent = item.text;
-      article.append(text);
-      return article;
-    }));
+    const scroller = incluye.querySelector("#chapel-scroller, .chapel-scroller");
+    if (scroller) {
+      const chapels = (siteContent.capillas || []).filter((item) => !item.hidden);
+      const cards = chapels.map((item) => {
+        const card = document.createElement("article");
+        card.className = "chapel-card";
+        card.dataset.href = `#/${item.id}`;
+
+        const photo = document.createElement("div");
+        photo.className = "chapel-card-photo";
+        const image = document.createElement("img");
+        image.src = item.image;
+        image.alt = item.alt || item.name;
+        photo.append(image);
+
+        const body = document.createElement("div");
+        body.className = "chapel-card-body";
+        const name = document.createElement("h3");
+        name.textContent = item.name;
+        const place = document.createElement("p");
+        place.className = "chapel-card-place";
+        place.textContent = [item.colonia, item.municipio].filter(Boolean).join(" · ");
+        body.append(name, place);
+
+        const cta = document.createElement("a");
+        cta.className = "chapel-card-cta";
+        cta.href = `#/${item.id}`;
+        cta.textContent = item.cta || "Contratar";
+
+        card.append(photo, body, cta);
+        return card;
+      });
+      const moreCard = document.createElement("article");
+      moreCard.className = "chapel-card is-more-services";
+      moreCard.dataset.action = "more-services";
+      moreCard.setAttribute("role", "button");
+      moreCard.tabIndex = 0;
+      moreCard.setAttribute("aria-label", "Más servicios");
+      const moreIcon = document.createElement("span");
+      moreIcon.className = "more-services-icon";
+      moreIcon.setAttribute("aria-hidden", "true");
+      moreIcon.innerHTML =
+        '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+      const moreTitle = document.createElement("h3");
+      moreTitle.textContent = "Más servicios";
+      moreCard.append(moreIcon, moreTitle);
+      cards.push(moreCard);
+      scroller.replaceChildren(...cards);
+    }
   }
 
   const contact = document.querySelector("#contact .section-copy");
@@ -161,74 +192,132 @@ function fillProgramSelect() {
 }
 
 useContent(window.ShalomModel.readStoredContent() || structuredClone(window.SHALOM_DEFAULT));
+if (window.ShalomTemplates) window.ShalomTemplates.prepare(siteContent);
 
-const eyebrow = document.querySelector("#eyebrow");
-const headline = document.querySelector("#headline");
-const heroCopy = document.querySelector(".hero-copy");
-const dots = [...document.querySelectorAll(".dot")];
-let slideIndex = 0;
+let drag = null;
 
-function showSlide(index, animate) {
-  slideIndex = index;
-  const slide = slides[index];
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (animate && !reduce) {
-    heroCopy.classList.remove("is-swapping");
-    void heroCopy.offsetWidth;
-    heroCopy.classList.add("is-swapping");
+function fillMoreServicesList(root = document) {
+  const list = root.querySelector("#more-services-list, .more-services-list");
+  if (!list) return;
+  const services = (siteContent?.serviciosCatalog || []).filter((item) => !item.hidden);
+  if (!services.length) {
+    const empty = document.createElement("p");
+    empty.className = "more-services-empty";
+    empty.textContent = "Pronto publicaremos más servicios.";
+    list.replaceChildren(empty);
+    return;
   }
-  eyebrow.textContent = slide.eyebrow || "";
-  eyebrow.hidden = !slide.eyebrow;
-  setMultiline(headline, slide.title);
-  dots.forEach((dot, i) => {
-    const on = i === index;
-    dot.classList.toggle("is-on", on);
-    dot.setAttribute("aria-selected", on ? "true" : "false");
-    dot.setAttribute("aria-label", on ? `Mensaje ${i + 1}, seleccionado` : `Mostrar mensaje ${i + 1}`);
+  list.replaceChildren(
+    ...services.map((item) => {
+      const link = document.createElement("a");
+      link.className = "more-services-item";
+      link.href = `#/${item.id}`;
+
+      const photo = document.createElement("figure");
+      photo.className = "more-services-item-photo";
+      const image = document.createElement("img");
+      image.src = item.image || "assets/capilla-1.jpg";
+      image.alt = item.alt || item.name || "Servicio";
+      photo.append(image);
+
+      const body = document.createElement("div");
+      body.className = "more-services-item-body";
+      const title = document.createElement("h4");
+      title.textContent = item.name || "";
+      body.append(title);
+
+      const tags = (item.features || []).filter(Boolean);
+      if (tags.length) {
+        const tagsWrap = document.createElement("div");
+        tagsWrap.className = "more-services-item-tags";
+        tags.forEach((tag) => {
+          const pill = document.createElement("span");
+          pill.textContent = tag;
+          tagsWrap.append(pill);
+        });
+        body.append(tagsWrap);
+      }
+
+      const place = [item.colonia, item.municipio].filter(Boolean).join(" · ");
+      if (place) {
+        const location = document.createElement("p");
+        location.className = "more-services-item-place";
+        location.textContent = place;
+        body.append(location);
+      }
+
+      link.append(photo, body);
+      link.addEventListener("click", () => closeMoreServicesModal());
+      return link;
+    })
+  );
+}
+
+function openMoreServicesModal() {
+  const modal = document.querySelector("#more-services-modal");
+  if (!modal) return;
+  fillMoreServicesList(modal);
+  if (typeof modal.showModal === "function") modal.showModal();
+  else modal.setAttribute("open", "");
+}
+
+function closeMoreServicesModal() {
+  const modal = document.querySelector("#more-services-modal");
+  if (!modal) return;
+  if (typeof modal.close === "function") modal.close();
+  else modal.removeAttribute("open");
+}
+
+function wireMoreServicesModal() {
+  const modal = document.querySelector("#more-services-modal");
+  if (!modal || modal.dataset.wired === "1") return;
+  modal.dataset.wired = "1";
+  modal.querySelector(".more-services-modal-close")?.addEventListener("click", closeMoreServicesModal);
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) closeMoreServicesModal();
   });
 }
 
-dots.forEach((dot, index) => {
-  dot.addEventListener("click", () => showSlide(index, true));
-});
-showSlide(0, false);
-
-const scroller = document.querySelector("#scroller");
-let drag = null;
-
 function openCard(card) {
+  if (card?.dataset?.action === "more-services") {
+    openMoreServicesModal();
+    return;
+  }
   const href = card?.dataset?.href;
   if (href) location.hash = href;
 }
 
-scroller.addEventListener("pointerdown", (event) => {
+const views = document.querySelector("#views");
+views?.addEventListener("pointerdown", (event) => {
   if (event.button != null && event.button !== 0) return;
   if (event.target.closest("a, button")) return;
-  const card = event.target.closest("article.card");
-  if (!card || !scroller.contains(card)) return;
+  const scroller = event.target.closest(".scroller");
+  const card = event.target.closest("article.card, article.chapel-card");
+  if (!scroller || !card || !scroller.contains(card)) return;
   drag = {
     id: event.pointerId,
     x: event.clientX,
     left: scroller.scrollLeft,
     moved: false,
     card,
+    scroller,
   };
   scroller.setPointerCapture(event.pointerId);
 });
 
-scroller.addEventListener("pointermove", (event) => {
+views?.addEventListener("pointermove", (event) => {
   if (!drag || event.pointerId !== drag.id) return;
   const dx = event.clientX - drag.x;
   if (Math.abs(dx) > 6) {
-    if (!drag.moved) scroller.classList.add("is-dragging");
+    if (!drag.moved) drag.scroller.classList.add("is-dragging");
     drag.moved = true;
   }
-  if (drag.moved) scroller.scrollLeft = drag.left - dx;
+  if (drag.moved) drag.scroller.scrollLeft = drag.left - dx;
 });
 
 function endDrag(event) {
   if (!drag || event.pointerId !== drag.id) return;
-  const { moved, card } = drag;
+  const { moved, card, scroller } = drag;
   scroller.classList.remove("is-dragging");
   if (scroller.hasPointerCapture?.(event.pointerId)) {
     scroller.releasePointerCapture(event.pointerId);
@@ -237,19 +326,31 @@ function endDrag(event) {
   if (!moved) openCard(card);
 }
 
-scroller.addEventListener("pointerup", endDrag);
-scroller.addEventListener("pointercancel", (event) => {
+views?.addEventListener("pointerup", endDrag);
+views?.addEventListener("pointercancel", (event) => {
   if (!drag || event.pointerId !== drag.id) return;
-  scroller.classList.remove("is-dragging");
+  drag.scroller.classList.remove("is-dragging");
   drag = null;
 });
 
-scroller.addEventListener("click", (event) => {
-  if (event.target.closest("a.more")) return;
-  const card = event.target.closest("article.card");
-  if (!card || !scroller.contains(card) || !card.dataset.href) return;
+views?.addEventListener("click", (event) => {
+  const scroller = event.target.closest(".scroller");
+  if (!scroller || event.target.closest("a.more, a.chapel-card-cta")) return;
+  const card = event.target.closest("article.card, article.chapel-card");
+  if (!card || !scroller.contains(card)) return;
+  if (!card.dataset.href && card.dataset.action !== "more-services") return;
   event.preventDefault();
 }, true);
+
+views?.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  const moreCard = event.target.closest?.(".chapel-card.is-more-services");
+  if (!moreCard) return;
+  event.preventDefault();
+  openMoreServicesModal();
+});
+
+wireMoreServicesModal();
 
 const form = document.querySelector("#trial-form");
 const formError = document.querySelector("#form-error");
@@ -339,7 +440,10 @@ function renderPackage(id) {
   was.hidden = !pkg.compare;
   was.textContent = pkg.compare ? `Precio original ${pkg.compare}` : "";
   setCta(pkg);
-  document.querySelector("#pkg-buy").classList.toggle("is-gold", pkg.featured);
+  const buy = document.querySelector("#pkg-buy");
+  buy.classList.remove("is-gold", "is-luxury");
+  const buyMod = window.ShalomModel.packageBuyModifier(pkg);
+  if (buyMod) buy.classList.add(buyMod);
 
   const intro = pkg.paragraphs.filter(Boolean).map((text) => {
     const paragraph = document.createElement("p");
@@ -399,12 +503,19 @@ document.querySelector("#pkg-info").addEventListener("click", () => {
 function renderGenerated(found) {
   const view = document.querySelector("#generated-view");
   view.replaceChildren();
-  found.template.render(view, found.page, { edit: false });
+  const pageData = found.page || (found.template.blank ? found.template.blank() : {});
+  if (!found.page && found.template.key && siteContent) {
+    siteContent[found.template.key] = pageData;
+  }
+  found.template.render(view, pageData, { edit: false });
   document.querySelector("#home-view").hidden = true;
   document.querySelector("#package-view").hidden = true;
   view.hidden = false;
-  document.title = `${window.ShalomTemplates.pageLabel(found.template, found.page)} — Shalom`;
-  const page = view.querySelector(".page-nosotros");
+  document.title = `${window.ShalomTemplates.pageLabel(found.template, pageData)} — Shalom`;
+  if (found.template.id === "paquetes") renderCards();
+  if (found.template.id === "servicios") wireCommentsSection(view);
+  if (view.querySelector("#more-services-modal")) wireMoreServicesModal();
+  const page = view.querySelector(".page-nosotros, .page-servicios");
   if (page) {
     page.classList.remove("is-ready");
     requestAnimationFrame(() => {
@@ -420,6 +531,257 @@ document.querySelector("#generated-view").addEventListener("click", (event) => {
   location.hash = card.dataset.href;
 });
 
+function isPaquetesHash(hash = location.hash) {
+  return hash === "#/paquetes" || hash === "#paquetes";
+}
+
+function setSheetMode(mode) {
+  const sheet = document.querySelector(".sheet");
+  if (!sheet) return;
+  sheet.classList.toggle("is-paquetes", mode === "paquetes");
+  sheet.classList.toggle("is-nosotros", mode === "nosotros");
+}
+
+const COMMENTS_PER_SLIDE = 4;
+const COMMENTS_AUTO_MIN = 9;
+const COMMENTS_AUTO_MS = 15_000;
+
+function stopCommentsAutoplay(listEl) {
+  if (!listEl?._commentsAutoplay) return;
+  clearInterval(listEl._commentsAutoplay);
+  listEl._commentsAutoplay = 0;
+}
+
+function commentCard(item) {
+  const card = document.createElement("blockquote");
+  card.className = "comment-card";
+  const mark = document.createElement("span");
+  mark.className = "comment-card-mark";
+  mark.setAttribute("aria-hidden", "true");
+  mark.textContent = "“";
+  const message = document.createElement("p");
+  message.textContent = item.message || "";
+  const cite = document.createElement("cite");
+  cite.textContent = item.name || "Familia";
+  card.append(mark, message, cite);
+  return card;
+}
+
+function chunkComments(items, size) {
+  const slides = [];
+  for (let index = 0; index < items.length; index += size) {
+    slides.push(items.slice(index, index + size));
+  }
+  return slides;
+}
+
+function mountCommentsSlider(listEl, comments) {
+  stopCommentsAutoplay(listEl);
+  const sorted = [...comments].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const pages = chunkComments(sorted, COMMENTS_PER_SLIDE);
+  listEl.classList.add("comments-slider");
+  listEl.replaceChildren();
+
+  const frame = document.createElement("div");
+  frame.className = "comments-slider-frame";
+  const track = document.createElement("div");
+  track.className = "comments-slider-track";
+
+  pages.forEach((page) => {
+    const slide = document.createElement("div");
+    slide.className = "comments-slide";
+    slide.setAttribute("role", "group");
+    page.forEach((item) => slide.append(commentCard(item)));
+    track.append(slide);
+  });
+  frame.append(track);
+  listEl.append(frame);
+
+  if (pages.length <= 1) return;
+
+  let index = 0;
+  const autoplay = sorted.length >= COMMENTS_AUTO_MIN;
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const nav = document.createElement("div");
+  nav.className = "comments-slider-nav";
+
+  const prev = document.createElement("button");
+  prev.type = "button";
+  prev.className = "icon-btn comments-slider-btn";
+  prev.setAttribute("aria-label", "Comentarios anteriores");
+  prev.innerHTML =
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6 9 12l6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  const next = document.createElement("button");
+  next.type = "button";
+  next.className = "icon-btn comments-slider-btn";
+  next.setAttribute("aria-label", "Comentarios siguientes");
+  next.innerHTML =
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  const dots = document.createElement("div");
+  dots.className = "comments-slider-dots";
+  const dotButtons = pages.map((_, pageIndex) => {
+    const dot = document.createElement("button");
+    dot.type = "button";
+    dot.className = "comments-slider-dot";
+    dot.setAttribute("aria-label", `Grupo de comentarios ${pageIndex + 1}`);
+    dot.addEventListener("click", () => goTo(pageIndex, true));
+    dots.append(dot);
+    return dot;
+  });
+
+  const paint = () => {
+    track.style.transform = `translateX(-${index * 100}%)`;
+    if (autoplay) {
+      prev.disabled = false;
+      next.disabled = false;
+    } else {
+      prev.disabled = index <= 0;
+      next.disabled = index >= pages.length - 1;
+    }
+    dotButtons.forEach((dot, pageIndex) => {
+      dot.classList.toggle("is-active", pageIndex === index);
+      dot.setAttribute("aria-current", pageIndex === index ? "true" : "false");
+    });
+  };
+
+  const goTo = (nextIndex, fromUser = false) => {
+    if (autoplay) {
+      index = ((nextIndex % pages.length) + pages.length) % pages.length;
+    } else {
+      index = Math.max(0, Math.min(pages.length - 1, nextIndex));
+    }
+    paint();
+    if (fromUser && autoplay && !reduceMotion) restartAutoplay();
+  };
+
+  const restartAutoplay = () => {
+    stopCommentsAutoplay(listEl);
+    listEl._commentsAutoplay = setInterval(() => {
+      goTo(index + 1);
+    }, COMMENTS_AUTO_MS);
+  };
+
+  prev.addEventListener("click", () => goTo(index - 1, true));
+  next.addEventListener("click", () => goTo(index + 1, true));
+  nav.append(prev, dots, next);
+  listEl.append(nav);
+  paint();
+
+  if (autoplay && !reduceMotion) restartAutoplay();
+}
+
+async function loadApprovedComments(listEl) {
+  if (!listEl) return;
+  stopCommentsAutoplay(listEl);
+  listEl.classList.remove("comments-slider");
+  listEl.replaceChildren();
+  const loading = document.createElement("p");
+  loading.className = "comments-empty";
+  loading.textContent = "Cargando comentarios…";
+  listEl.append(loading);
+  try {
+    const response = await fetch("/api/comments");
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "error");
+    const comments = Array.isArray(payload.comments) ? payload.comments : [];
+    listEl.replaceChildren();
+    if (!comments.length) {
+      const empty = document.createElement("p");
+      empty.className = "comments-empty";
+      empty.textContent = "Aún no hay comentarios publicados.";
+      listEl.append(empty);
+      return;
+    }
+    mountCommentsSlider(listEl, comments);
+  } catch {
+    listEl.replaceChildren();
+    const error = document.createElement("p");
+    error.className = "comments-empty";
+    error.textContent = "No se pudieron cargar los comentarios.";
+    listEl.append(error);
+  }
+}
+
+function wireCommentsSection(root) {
+  const list = root.querySelector("#comments-list");
+  const form = root.querySelector("#comments-form");
+  const modal = root.querySelector("#comments-modal");
+  const openBtn = root.querySelector("#comments-open");
+  const closeBtn = root.querySelector(".comments-modal-close");
+  loadApprovedComments(list);
+
+  if (modal && openBtn && modal.dataset.wired !== "1") {
+    modal.dataset.wired = "1";
+    const openModal = () => {
+      if (typeof modal.showModal === "function") modal.showModal();
+      else modal.setAttribute("open", "");
+      const first = form?.querySelector("input[name='name']");
+      if (first) requestAnimationFrame(() => first.focus());
+    };
+    const closeModal = () => {
+      if (typeof modal.close === "function") modal.close();
+      else modal.removeAttribute("open");
+    };
+    openBtn.addEventListener("click", openModal);
+    closeBtn?.addEventListener("click", closeModal);
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal) closeModal();
+    });
+  }
+
+  if (!form || form.dataset.wired === "1") return;
+  form.dataset.wired = "1";
+  const errorEl = form.querySelector("#comments-error");
+  const successEl = form.querySelector("#comments-success");
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const name = String(data.get("name") || "").trim();
+    const message = String(data.get("message") || "").trim();
+    if (errorEl) errorEl.hidden = true;
+    if (successEl) successEl.hidden = true;
+    if (name.length < 2 || message.length < 8) {
+      if (errorEl) {
+        errorEl.textContent = "Escriba su nombre y un comentario de al menos unas palabras.";
+        errorEl.hidden = false;
+      }
+      return;
+    }
+    const submit = form.querySelector('button[type="submit"]');
+    if (submit) submit.disabled = true;
+    try {
+      const response = await fetch("/api/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          message,
+          company: data.get("company"),
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (errorEl) {
+          errorEl.textContent = payload.error || "No se pudo enviar el comentario.";
+          errorEl.hidden = false;
+        }
+        return;
+      }
+      form.reset();
+      if (successEl) successEl.hidden = false;
+    } catch {
+      if (errorEl) {
+        errorEl.textContent = "No se pudo enviar el comentario. Inténtelo de nuevo.";
+        errorEl.hidden = false;
+      }
+    } finally {
+      if (submit) submit.disabled = false;
+    }
+  });
+}
+
 function applyRoute() {
   const id = packageId(location.hash);
   const home = document.querySelector("#home-view");
@@ -427,6 +789,7 @@ function applyRoute() {
   const generated = document.querySelector("#generated-view");
 
   if (id) {
+    setSheetMode(null);
     renderPackage(id);
     home.hidden = true;
     view.hidden = false;
@@ -436,13 +799,22 @@ function applyRoute() {
     return;
   }
 
-  const slug = String(location.hash || "").match(/^#\/([a-z0-9-]+)$/)?.[1] || "";
-  if (slug === "servicios") {
-    location.replace("#servicios");
+  if (location.hash === "#paquetes") {
+    location.replace("#/paquetes");
     return;
   }
+
+  const slug = String(location.hash || "").match(/^#\/([a-z0-9-]+)$/)?.[1] || "";
   const found = slug && window.ShalomTemplates ? window.ShalomTemplates.findPage(siteContent, slug) : null;
   if (found && found.template.id !== "paquete") {
+    if (found.template.id === "articulo" && found.page?.hidden) {
+      location.hash = "#/nosotros";
+      return;
+    }
+    if (found.template.id === "articulo" && found.page?.id) lastArticuloId = found.page.id;
+    setSheetMode(
+      found.template.id === "paquetes" ? "paquetes" : found.template.id === "nosotros" ? "nosotros" : null
+    );
     renderGenerated(found);
     trackAnalyticsPage(found.template.id === "nosotros" || slug === "nosotros" ? "nosotros" : null);
     return;
@@ -451,6 +823,7 @@ function applyRoute() {
     return;
   }
 
+  setSheetMode(null);
   view.hidden = true;
   if (generated) generated.hidden = true;
   home.hidden = false;
@@ -468,6 +841,14 @@ function packageId(hash) {
   return id && packages[id] ? id : "";
 }
 
+let lastArticuloId = "";
+
+function articuloFromHash(hash = location.hash) {
+  const id = String(hash || "").match(/^#\/([a-z0-9-]+)$/)?.[1] || "";
+  if (!id || !siteContent) return null;
+  return (siteContent.articulos || []).find((item) => item.id === id && !item.hidden) || null;
+}
+
 function cardImage(id) {
   const link = document.querySelector(`a.more[href="#/${id}"]`);
   return link?.closest(".photo") || null;
@@ -477,33 +858,81 @@ function clearPhotoName() {
   document.querySelectorAll(".vt-photo").forEach((image) => image.classList.remove("vt-photo"));
 }
 
+function clearArticuloVt() {
+  document.querySelectorAll(".vt-articulo-media").forEach((node) => {
+    node.classList.remove("vt-articulo-media");
+  });
+  document.documentElement.classList.remove("vt-articulo-active");
+}
+
 function settleScroll() {
-  const target = !packageId(location.hash) && location.hash.startsWith("#")
-    ? document.querySelector(location.hash)
-    : null;
-  const top = target ? target.getBoundingClientRect().top + window.scrollY : 0;
-  window.scrollTo({ top, behavior: "instant" });
+  const sheet = document.querySelector(".sheet");
+  if (!sheet) return;
+  if (isPaquetesHash(location.hash) || location.hash === "#/nosotros") {
+    sheet.scrollTo({ top: 0, behavior: "instant" });
+    return;
+  }
+  const hash = location.hash || "";
+  // Ignore SPA routes like #/servicios — they are not element ids.
+  const target =
+    !packageId(hash) && /^#[a-zA-Z][\w-]*$/.test(hash) ? document.querySelector(hash) : null;
+  const top = target
+    ? target.getBoundingClientRect().top - sheet.getBoundingClientRect().top + sheet.scrollTop
+    : 0;
+  sheet.scrollTo({ top, behavior: "instant" });
 }
 
 function armOutgoing(oldHash, newHash) {
   clearPhotoName();
+  clearArticuloVt();
   const oldId = packageId(oldHash);
   const newId = packageId(newHash);
   if (oldId) {
     document.querySelector(".package-photo")?.classList.add("vt-photo");
     return;
   }
-  if (newId) cardImage(newId)?.classList.add("vt-photo");
+  if (newId) {
+    cardImage(newId)?.classList.add("vt-photo");
+    return;
+  }
+
+  const fromArticulo = articuloFromHash(oldHash);
+  const toArticulo = articuloFromHash(newHash);
+  if (fromArticulo) {
+    document.querySelector(".articulo-cover")?.classList.add("vt-articulo-media");
+    document.documentElement.classList.add("vt-articulo-active");
+    return;
+  }
+  if (toArticulo) {
+    const card = document.querySelector(`.nosotros-card[data-articulo-id="${toArticulo.id}"]`);
+    card?.querySelector(".nosotros-card-cover")?.classList.add("vt-articulo-media");
+    document.documentElement.classList.add("vt-articulo-active");
+  }
 }
 
 function armIncoming() {
   clearPhotoName();
+  document.querySelectorAll(".vt-articulo-media").forEach((node) => {
+    node.classList.remove("vt-articulo-media");
+  });
   const nextId = packageId(location.hash);
   if (nextId) {
     document.querySelector(".package-photo")?.classList.add("vt-photo");
     return;
   }
-  const returnsToCards = location.hash === "#servicios" || location.hash === "#home" || location.hash === "";
+  const articulo = articuloFromHash(location.hash);
+  if (articulo) {
+    document.querySelector(".articulo-cover")?.classList.add("vt-articulo-media");
+    document.documentElement.classList.add("vt-articulo-active");
+    return;
+  }
+  if (location.hash === "#/nosotros" && lastArticuloId) {
+    document
+      .querySelector(`.nosotros-card[data-articulo-id="${lastArticuloId}"] .nosotros-card-cover`)
+      ?.classList.add("vt-articulo-media");
+    document.documentElement.classList.add("vt-articulo-active");
+  }
+  const returnsToCards = isPaquetesHash() || location.hash === "#home" || location.hash === "";
   if (activeId && returnsToCards) cardImage(activeId)?.classList.add("vt-photo");
 }
 
@@ -511,6 +940,7 @@ function transitionRoute(event) {
   const oldHash = event?.oldURL ? new URL(event.oldURL).hash : "";
   const newHash = location.hash;
   const involvesPackage = packageId(oldHash) || packageId(newHash);
+  const involvesArticulo = Boolean(articuloFromHash(oldHash) || articuloFromHash(newHash));
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const update = () => {
@@ -518,9 +948,10 @@ function transitionRoute(event) {
     armIncoming();
   };
 
-  if (!involvesPackage || reduce || typeof document.startViewTransition !== "function") {
+  if ((!involvesPackage && !involvesArticulo) || reduce || typeof document.startViewTransition !== "function") {
     update();
     clearPhotoName();
+    clearArticuloVt();
     settleScroll();
     return;
   }
@@ -532,30 +963,46 @@ function transitionRoute(event) {
   } catch (error) {
     update();
     clearPhotoName();
+    clearArticuloVt();
     settleScroll();
     return;
   }
   transition.ready.catch(() => {});
   transition.finished.finally(() => {
     clearPhotoName();
+    clearArticuloVt();
     settleScroll();
   });
 }
 
 window.addEventListener("hashchange", transitionRoute);
-applyRoute();
 
-window.ShalomModel.loadContent().then(async (content) => {
-  if (window.ShalomTemplates) await window.ShalomTemplates.load();
-  templatesReady = true;
-  useContent(content);
-  if (window.ShalomTemplates) window.ShalomTemplates.prepare(siteContent);
-  showSlide(Math.min(slideIndex, Math.max(slides.length - 1, 0)), false);
+window.ShalomModel.loadContent()
+  .then(async (content) => {
+    if (window.ShalomTemplates) await window.ShalomTemplates.load();
+    templatesReady = true;
+    useContent(content);
+    if (window.ShalomTemplates) window.ShalomTemplates.prepare(siteContent);
+    applyRoute();
+    if (pendingProgram && packages[pendingProgram]) {
+      document.querySelector('select[name="program"]').value = pendingProgram;
+    }
+  })
+  .catch((error) => {
+    console.error(error);
+    templatesReady = true;
+    try {
+      applyRoute();
+    } catch (routeError) {
+      console.error(routeError);
+    }
+  });
+
+try {
   applyRoute();
-  if (pendingProgram && packages[pendingProgram]) {
-    document.querySelector('select[name="program"]').value = pendingProgram;
-  }
-});
+} catch (error) {
+  console.error(error);
+}
 
 document.documentElement.dataset.ready = "1";
 

@@ -23,7 +23,21 @@
 */
 (function () {
   const templates = [];
-  const reservedIds = new Set(["home", "about", "servicios", "nosotros", "incluye", "contact", "edit"]);
+  const reservedIds = new Set([
+    "home",
+    "about",
+    "servicios",
+    "servicios-catalog",
+    "paquetes",
+    "capillas",
+    "nosotros",
+    "articulos",
+    "articulo",
+    "servicio",
+    "incluye",
+    "contact",
+    "edit",
+  ]);
   const imageIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="9" cy="10" r="1.3" fill="currentColor"/><path d="M4.5 16.5 8.6 13a1 1 0 0 1 1.3.05L13 16l1.7-1.4a1 1 0 0 1 1.3.1L20 17.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   let loading = null;
 
@@ -125,6 +139,41 @@
   }
 
   function activate(root, data, hooks) {
+    // En el editor visual los enlaces no deben navegar: solo editar campos.
+    if (root.dataset.editorLinksBound !== "1") {
+      root.dataset.editorLinksBound = "1";
+      root.addEventListener(
+        "click",
+        (event) => {
+          const link = event.target.closest("a[href]");
+          if (!link || !root.contains(link)) return;
+          event.preventDefault();
+          event.stopPropagation();
+        },
+        true
+      );
+      root.addEventListener(
+        "auxclick",
+        (event) => {
+          const link = event.target.closest("a[href]");
+          if (!link || !root.contains(link)) return;
+          event.preventDefault();
+          event.stopPropagation();
+        },
+        true
+      );
+    }
+    root.querySelectorAll("a[href]").forEach((link) => {
+      link.setAttribute("data-editor-href", link.getAttribute("href") || "");
+      if (link.hasAttribute("target")) {
+        link.setAttribute("data-editor-target", link.getAttribute("target") || "");
+        link.removeAttribute("target");
+      }
+      link.removeAttribute("href");
+      link.setAttribute("role", "presentation");
+      link.setAttribute("tabindex", "-1");
+    });
+
     root.querySelectorAll("[data-field]").forEach((node) => {
       const path = node.dataset.field;
       node.replaceChildren(field(getPath(data, path), (value) => {
@@ -194,6 +243,17 @@
         const list = getPath(data, keys.join("."));
         if (!Array.isArray(list)) return;
         list.splice(index, 1);
+        hooks.onStructure();
+      });
+    });
+
+    root.querySelectorAll("[data-theme]").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        const theme = button.dataset.theme;
+        if (!theme) return;
+        data.theme = theme;
+        data.featured = theme === "gold";
         hooks.onStructure();
       });
     });
@@ -272,6 +332,7 @@
     if (Object.prototype.hasOwnProperty.call(page, "name")) page.name = label;
     else page.title = label;
     page.featured = false;
+    page.theme = "sand";
     page.id = uniqueId(label, ids);
     return template.normalize ? template.normalize(page) : page;
   }
@@ -291,14 +352,16 @@
     return null;
   }
 
-  function inject(file) {
+  function inject(file, force = false) {
     return new Promise((resolve, reject) => {
-      if (document.querySelector(`script[data-template="${file}"]`)) {
+      const existing = document.querySelector(`script[data-template="${file}"]`);
+      if (existing && !force) {
         resolve();
         return;
       }
+      if (existing && force) existing.remove();
       const script = document.createElement("script");
-      script.src = `templates/${file}`;
+      script.src = force ? `templates/${file}?t=${Date.now()}` : `templates/${file}`;
       script.dataset.template = file;
       script.onload = () => resolve();
       script.onerror = () => reject(new Error(`No se pudo cargar templates/${file}`));
@@ -318,11 +381,22 @@
     return loading;
   }
 
+  function reload() {
+    loading = fetch("/api/templates")
+      .then((response) => (response.ok ? response.json() : []))
+      .catch(() => [])
+      .then(async (files) => {
+        for (const file of files) await inject(file, true);
+      });
+    return loading;
+  }
+
   window.ShalomTemplates = {
     define,
     list,
     get,
     load,
+    reload,
     prepare,
     source,
     pages,

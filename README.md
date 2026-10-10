@@ -31,6 +31,13 @@ Abre [http://127.0.0.1:3000](http://127.0.0.1:3000). Admin: `/admin` (login en `
 
 El correo de contacto y la API key de Resend se configuran desde el admin (engranaje).
 
+## Funciones principales
+
+- Páginas públicas: Inicio, Paquetes, Servicios, Nosotros (artículos tipo Reels)
+- Admin: Páginas, Paquetes, Capillas, Artículos, Comentarios (moderación)
+- Subida de imágenes optimizadas a WebP con Sharp
+- Comentarios públicos con aprobación desde el admin
+
 ## Docker
 
 ```bash
@@ -39,12 +46,12 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-`./data` se monta como volumen para persistir contenido, analytics y ajustes.
+`./data` se monta como volumen para persistir contenido, analytics, comentarios y ajustes.
 
 ## Despliegue
 
-1. Configura las variables de entorno en el host.
+1. Configura las variables de entorno en el host (nunca subas `.env` ni `data/admin.json`).
 2. `npm ci --omit=dev`
 3. `npm start` (escucha en `0.0.0.0:$PORT`)
 
-Asegúrate de que el directorio `data/` sea escribible en producción.
+Asegúrate de que los directorios `data/` y `assets/uploads/` sean escribibles en producción.

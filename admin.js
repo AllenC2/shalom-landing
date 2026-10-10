@@ -447,9 +447,11 @@ function iconButton(kind, label, onClick) {
   return button;
 }
 
-function packageThumb(page, template, jobs) {
+function packageThumb(page, template, jobs, order) {
   const wrap = document.createElement("div");
   wrap.className = `thumb-wrap${page.hidden ? " is-hidden" : ""}`;
+  wrap.draggable = true;
+  wrap.dataset.packageId = page.id;
 
   const link = shotThumb(
     engine.pageLabel(template, page),
@@ -459,6 +461,11 @@ function packageThumb(page, template, jobs) {
     `paquete/${page.id}`,
     jobs
   );
+
+  const orderBadge = document.createElement("span");
+  orderBadge.className = "thumb-order";
+  orderBadge.textContent = String(order);
+  orderBadge.title = `Orden ${order} en el carrusel`;
 
   const actions = document.createElement("div");
   actions.className = "thumb-actions";
@@ -506,8 +513,92 @@ function packageThumb(page, template, jobs) {
     })
   );
 
-  wrap.append(link, actions);
+  actions.addEventListener("pointerdown", (event) => event.stopPropagation());
+  link.addEventListener("click", (event) => {
+    if (wrap.dataset.didDrag === "1") {
+      event.preventDefault();
+      wrap.dataset.didDrag = "0";
+    }
+  });
+
+  wrap.append(link, actions, orderBadge);
   return wrap;
+}
+
+function updatePackageOrderBadges(grid) {
+  [...grid.querySelectorAll(".thumb-wrap")].forEach((wrap, index) => {
+    const badge = wrap.querySelector(".thumb-order");
+    if (badge) {
+      badge.textContent = String(index + 1);
+      badge.title = `Orden ${index + 1} en el carrusel`;
+    }
+  });
+}
+
+function syncPackageOrderFromGrid(grid, template) {
+  const list = engine.pages(state, template);
+  const orderedIds = [...grid.querySelectorAll(".thumb-wrap")].map((wrap) => wrap.dataset.packageId);
+  const next = orderedIds.map((id) => list.find((item) => item.id === id)).filter(Boolean);
+  if (next.length !== list.length) return false;
+  const unchanged = next.every((item, index) => item.id === list[index]?.id);
+  if (unchanged) return false;
+  state.packages = next;
+  updatePackageOrderBadges(grid);
+  scheduleSave();
+  return true;
+}
+
+function wirePackageReorder(grid, template) {
+  let dragId = "";
+
+  grid.addEventListener("dragstart", (event) => {
+    const wrap = event.target.closest(".thumb-wrap");
+    if (!wrap || !grid.contains(wrap)) return;
+    if (event.target.closest(".thumb-actions")) {
+      event.preventDefault();
+      return;
+    }
+    dragId = wrap.dataset.packageId || "";
+    wrap.dataset.didDrag = "0";
+    wrap.classList.add("is-dragging");
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", dragId);
+  });
+
+  grid.addEventListener("dragend", (event) => {
+    const wrap = event.target.closest(".thumb-wrap");
+    wrap?.classList.remove("is-dragging");
+    grid.querySelectorAll(".thumb-wrap.is-drop-target").forEach((node) => node.classList.remove("is-drop-target"));
+    syncPackageOrderFromGrid(grid, template);
+    dragId = "";
+  });
+
+  grid.addEventListener("dragover", (event) => {
+    const target = event.target.closest(".thumb-wrap");
+    if (!dragId || !target || target.dataset.packageId === dragId) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    grid.querySelectorAll(".thumb-wrap.is-drop-target").forEach((node) => {
+      if (node !== target) node.classList.remove("is-drop-target");
+    });
+    target.classList.add("is-drop-target");
+
+    const source = grid.querySelector(`.thumb-wrap[data-package-id="${dragId}"]`);
+    if (!source || source === target) return;
+    const items = [...grid.children];
+    const from = items.indexOf(source);
+    const to = items.indexOf(target);
+    if (from < 0 || to < 0 || from === to) return;
+    if (from < to) grid.insertBefore(source, target.nextSibling);
+    else grid.insertBefore(source, target);
+    source.dataset.didDrag = "1";
+    updatePackageOrderBadges(grid);
+  });
+
+  grid.addEventListener("drop", (event) => {
+    event.preventDefault();
+    syncPackageOrderFromGrid(grid, template);
+  });
 }
 
 function newPackageButton(template) {
@@ -531,9 +622,429 @@ function newPackageButton(template) {
   return button;
 }
 
+function createCapillaForm(template, onCreated) {
+  const form = document.createElement("form");
+  form.className = "create-form create-form-modal";
+  const input = document.createElement("input");
+  input.name = "name";
+  input.required = true;
+  input.placeholder = "Nombre de la nueva capilla";
+  input.autocomplete = "off";
+  const button = document.createElement("button");
+  button.type = "submit";
+  button.textContent = "Crear capilla";
+  form.append(input, button);
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const page = engine.clonePage(template, engine.source(state, template), input.value, state);
+    engine.pages(state, template).push(page);
+    scheduleSave();
+    onCreated?.(page);
+  });
+  return form;
+}
+
+function newCapillaButton(template) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "dash-new-btn";
+  button.textContent = "Nueva capilla";
+  button.addEventListener("click", () => {
+    let dialog;
+    const form = createCapillaForm(template, (page) => {
+      dialog?.close();
+      location.hash = `#/edit/capilla/${page.id}`;
+    });
+    dialog = openDialog({
+      title: "Nueva capilla",
+      body: form,
+      hideConfirm: true,
+      hideCancel: true,
+    });
+  });
+  return button;
+}
+
+function capillaThumb(page, template, jobs, order) {
+  const wrap = document.createElement("div");
+  wrap.className = `thumb-wrap${page.hidden ? " is-hidden" : ""}`;
+  wrap.draggable = true;
+  wrap.dataset.packageId = page.id;
+
+  const link = shotThumb(
+    engine.pageLabel(template, page),
+    `#/edit/capilla/${page.id}`,
+    template,
+    page,
+    `capilla/${page.id}`,
+    jobs
+  );
+
+  const orderBadge = document.createElement("span");
+  orderBadge.className = "thumb-order";
+  orderBadge.textContent = String(order);
+  orderBadge.title = `Orden ${order}`;
+
+  const actions = document.createElement("div");
+  actions.className = "thumb-actions";
+  actions.append(
+    iconButton("delete", "Eliminar capilla", () => {
+      openDialog({
+        title: "Eliminar capilla",
+        body: `¿Eliminar «${page.name}»? Esta acción no se puede deshacer.`,
+        confirmLabel: "Eliminar",
+        tone: "danger",
+        onConfirm() {
+          const list = engine.pages(state, template);
+          const index = list.findIndex((item) => item.id === page.id);
+          if (index < 0) return;
+          list.splice(index, 1);
+          if (state.miniatures) delete state.miniatures[`capilla/${page.id}`];
+          if (state.miniatureStamps) delete state.miniatureStamps[`capilla/${page.id}`];
+          scheduleSave();
+          renderCapillas();
+        },
+      });
+    }),
+    iconButton("duplicate", "Duplicar capilla", () => {
+      const list = engine.pages(state, template);
+      const name = model.nextDuplicateName(page.name, list, "Capilla");
+      const copy = engine.clonePage(template, page, name, state);
+      list.push(copy);
+      scheduleSave();
+      renderCapillas();
+    }),
+    iconButton(page.hidden ? "show" : "hide", page.hidden ? "Mostrar en el sitio" : "Ocultar del sitio", () => {
+      const hiding = !page.hidden;
+      openDialog({
+        title: hiding ? "Ocultar capilla" : "Mostrar capilla",
+        body: hiding
+          ? `¿Ocultar «${page.name}» del sitio público? Seguirá disponible en el admin.`
+          : `¿Volver a mostrar «${page.name}» en el sitio público?`,
+        confirmLabel: hiding ? "Ocultar" : "Mostrar",
+        onConfirm() {
+          page.hidden = hiding;
+          scheduleSave();
+          renderCapillas();
+        },
+      });
+    })
+  );
+
+  actions.addEventListener("pointerdown", (event) => event.stopPropagation());
+  link.addEventListener("click", (event) => {
+    if (wrap.dataset.didDrag === "1") {
+      event.preventDefault();
+      wrap.dataset.didDrag = "0";
+    }
+  });
+
+  wrap.append(link, actions, orderBadge);
+  return wrap;
+}
+
+function syncCapillaOrderFromGrid(grid, template) {
+  const list = engine.pages(state, template);
+  const orderedIds = [...grid.querySelectorAll(".thumb-wrap")].map((wrap) => wrap.dataset.packageId);
+  const next = orderedIds.map((id) => list.find((item) => item.id === id)).filter(Boolean);
+  if (next.length !== list.length) return false;
+  const unchanged = next.every((item, index) => item.id === list[index]?.id);
+  if (unchanged) return false;
+  state.capillas = next;
+  updatePackageOrderBadges(grid);
+  scheduleSave();
+  return true;
+}
+
+function wireCapillaReorder(grid, template) {
+  let dragId = "";
+
+  grid.addEventListener("dragstart", (event) => {
+    const wrap = event.target.closest(".thumb-wrap");
+    if (!wrap || !grid.contains(wrap)) return;
+    if (event.target.closest(".thumb-actions")) {
+      event.preventDefault();
+      return;
+    }
+    dragId = wrap.dataset.packageId || "";
+    wrap.dataset.didDrag = "0";
+    wrap.classList.add("is-dragging");
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", dragId);
+  });
+
+  grid.addEventListener("dragend", () => {
+    grid.querySelectorAll(".thumb-wrap.is-dragging, .thumb-wrap.is-drop-target").forEach((node) => {
+      node.classList.remove("is-dragging", "is-drop-target");
+    });
+    syncCapillaOrderFromGrid(grid, template);
+    dragId = "";
+  });
+
+  grid.addEventListener("dragover", (event) => {
+    const target = event.target.closest(".thumb-wrap");
+    if (!dragId || !target || target.dataset.packageId === dragId) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    grid.querySelectorAll(".thumb-wrap.is-drop-target").forEach((node) => {
+      if (node !== target) node.classList.remove("is-drop-target");
+    });
+    target.classList.add("is-drop-target");
+    const source = grid.querySelector(`.thumb-wrap[data-package-id="${dragId}"]`);
+    if (!source || source === target) return;
+    const items = [...grid.children];
+    const from = items.indexOf(source);
+    const to = items.indexOf(target);
+    if (from < 0 || to < 0 || from === to) return;
+    if (from < to) grid.insertBefore(source, target.nextSibling);
+    else grid.insertBefore(source, target);
+    source.dataset.didDrag = "1";
+    updatePackageOrderBadges(grid);
+  });
+
+  grid.addEventListener("drop", (event) => {
+    event.preventDefault();
+    syncCapillaOrderFromGrid(grid, template);
+  });
+}
+
+function renderCapillas() {
+  mountShell("capillas", (main) => {
+    const template = engine.get("capilla");
+    const generation = ++shotGeneration;
+    const jobs = [];
+    sectionHead(main, "Capillas", newCapillaButton(template));
+    const grid = document.createElement("div");
+    grid.className = "page-grid packages-sortable";
+    engine.pages(state, template).forEach((page, index) => {
+      grid.append(capillaThumb(page, template, jobs, index + 1));
+    });
+    if (!grid.childElementCount) {
+      const empty = document.createElement("p");
+      empty.className = "dash-lede";
+      empty.textContent = "Aún no hay capillas. Cree la primera con el botón Nueva capilla.";
+      main.append(empty);
+    } else {
+      main.append(grid);
+      wireCapillaReorder(grid, template);
+    }
+    refreshMiniatures(jobs, generation);
+  });
+}
+
+function createServicioForm(template, onCreated) {
+  const form = document.createElement("form");
+  form.className = "create-form create-form-modal";
+  const input = document.createElement("input");
+  input.name = "name";
+  input.required = true;
+  input.placeholder = "Nombre del nuevo servicio";
+  input.autocomplete = "off";
+  const button = document.createElement("button");
+  button.type = "submit";
+  button.textContent = "Crear servicio";
+  form.append(input, button);
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const page = engine.clonePage(template, engine.source(state, template), input.value, state);
+    engine.pages(state, template).push(page);
+    scheduleSave();
+    onCreated?.(page);
+  });
+  return form;
+}
+
+function newServicioButton(template) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "dash-new-btn";
+  button.textContent = "Nuevo servicio";
+  button.addEventListener("click", () => {
+    let dialog;
+    const form = createServicioForm(template, (page) => {
+      dialog?.close();
+      location.hash = `#/edit/servicio/${page.id}`;
+    });
+    dialog = openDialog({
+      title: "Nuevo servicio",
+      body: form,
+      hideConfirm: true,
+      hideCancel: true,
+    });
+  });
+  return button;
+}
+
+function servicioThumb(page, template, jobs, order) {
+  const wrap = document.createElement("div");
+  wrap.className = `thumb-wrap${page.hidden ? " is-hidden" : ""}`;
+  wrap.draggable = true;
+  wrap.dataset.packageId = page.id;
+
+  const link = shotThumb(
+    engine.pageLabel(template, page),
+    `#/edit/servicio/${page.id}`,
+    template,
+    page,
+    `servicio/${page.id}`,
+    jobs
+  );
+
+  const orderBadge = document.createElement("span");
+  orderBadge.className = "thumb-order";
+  orderBadge.textContent = String(order);
+  orderBadge.title = `Orden ${order}`;
+
+  const actions = document.createElement("div");
+  actions.className = "thumb-actions";
+  actions.append(
+    iconButton("delete", "Eliminar servicio", () => {
+      openDialog({
+        title: "Eliminar servicio",
+        body: `¿Eliminar «${page.name}»? Esta acción no se puede deshacer.`,
+        confirmLabel: "Eliminar",
+        tone: "danger",
+        onConfirm() {
+          const list = engine.pages(state, template);
+          const index = list.findIndex((item) => item.id === page.id);
+          if (index < 0) return;
+          list.splice(index, 1);
+          if (state.miniatures) delete state.miniatures[`servicio/${page.id}`];
+          if (state.miniatureStamps) delete state.miniatureStamps[`servicio/${page.id}`];
+          scheduleSave();
+          renderServiciosCatalog();
+        },
+      });
+    }),
+    iconButton("duplicate", "Duplicar servicio", () => {
+      const list = engine.pages(state, template);
+      const name = model.nextDuplicateName(page.name, list, "Servicio");
+      const copy = engine.clonePage(template, page, name, state);
+      list.push(copy);
+      scheduleSave();
+      renderServiciosCatalog();
+    }),
+    iconButton(page.hidden ? "show" : "hide", page.hidden ? "Mostrar en el sitio" : "Ocultar del sitio", () => {
+      const hiding = !page.hidden;
+      openDialog({
+        title: hiding ? "Ocultar servicio" : "Mostrar servicio",
+        body: hiding
+          ? `¿Ocultar «${page.name}» del sitio público? Seguirá disponible en el admin.`
+          : `¿Volver a mostrar «${page.name}» en el sitio público?`,
+        confirmLabel: hiding ? "Ocultar" : "Mostrar",
+        onConfirm() {
+          page.hidden = hiding;
+          scheduleSave();
+          renderServiciosCatalog();
+        },
+      });
+    })
+  );
+
+  actions.addEventListener("pointerdown", (event) => event.stopPropagation());
+  link.addEventListener("click", (event) => {
+    if (wrap.dataset.didDrag === "1") {
+      event.preventDefault();
+      wrap.dataset.didDrag = "0";
+    }
+  });
+
+  wrap.append(link, actions, orderBadge);
+  return wrap;
+}
+
+function syncServicioOrderFromGrid(grid, template) {
+  const list = engine.pages(state, template);
+  const orderedIds = [...grid.querySelectorAll(".thumb-wrap")].map((wrap) => wrap.dataset.packageId);
+  const next = orderedIds.map((id) => list.find((item) => item.id === id)).filter(Boolean);
+  if (next.length !== list.length) return false;
+  const unchanged = next.every((item, index) => item.id === list[index]?.id);
+  if (unchanged) return false;
+  state.serviciosCatalog = next;
+  updatePackageOrderBadges(grid);
+  scheduleSave();
+  return true;
+}
+
+function wireServicioReorder(grid, template) {
+  let dragId = "";
+
+  grid.addEventListener("dragstart", (event) => {
+    const wrap = event.target.closest(".thumb-wrap");
+    if (!wrap || !grid.contains(wrap)) return;
+    if (event.target.closest(".thumb-actions")) {
+      event.preventDefault();
+      return;
+    }
+    dragId = wrap.dataset.packageId || "";
+    wrap.dataset.didDrag = "0";
+    wrap.classList.add("is-dragging");
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", dragId);
+  });
+
+  grid.addEventListener("dragend", () => {
+    grid.querySelectorAll(".thumb-wrap.is-dragging, .thumb-wrap.is-drop-target").forEach((node) => {
+      node.classList.remove("is-dragging", "is-drop-target");
+    });
+    syncServicioOrderFromGrid(grid, template);
+    dragId = "";
+  });
+
+  grid.addEventListener("dragover", (event) => {
+    const target = event.target.closest(".thumb-wrap");
+    if (!dragId || !target || target.dataset.packageId === dragId) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    grid.querySelectorAll(".thumb-wrap.is-drop-target").forEach((node) => {
+      if (node !== target) node.classList.remove("is-drop-target");
+    });
+    target.classList.add("is-drop-target");
+    const source = grid.querySelector(`.thumb-wrap[data-package-id="${dragId}"]`);
+    if (!source || source === target) return;
+    const items = [...grid.children];
+    const from = items.indexOf(source);
+    const to = items.indexOf(target);
+    if (from < 0 || to < 0 || from === to) return;
+    if (from < to) grid.insertBefore(source, target.nextSibling);
+    else grid.insertBefore(source, target);
+    source.dataset.didDrag = "1";
+    updatePackageOrderBadges(grid);
+  });
+
+  grid.addEventListener("drop", (event) => {
+    event.preventDefault();
+    syncServicioOrderFromGrid(grid, template);
+  });
+}
+
+function renderServiciosCatalog() {
+  mountShell("servicios-catalog", (main) => {
+    const template = engine.get("servicio");
+    const generation = ++shotGeneration;
+    const jobs = [];
+    sectionHead(main, "Servicios", newServicioButton(template));
+    const grid = document.createElement("div");
+    grid.className = "page-grid packages-sortable";
+    engine.pages(state, template).forEach((page, index) => {
+      grid.append(servicioThumb(page, template, jobs, index + 1));
+    });
+    if (!grid.childElementCount) {
+      const empty = document.createElement("p");
+      empty.className = "dash-lede";
+      empty.textContent = "Aún no hay servicios. Cree el primero con el botón Nuevo servicio.";
+      main.append(empty);
+    } else {
+      main.append(grid);
+      wireServicioReorder(grid, template);
+    }
+    refreshMiniatures(jobs, generation);
+  });
+}
+
 const SHOT_WIDTH = 1200;
 const SHOT_HEIGHT = 840;
-const SHOT_VERSION = "5";
+const SHOT_VERSION = "6";
 let shotFrame = null;
 let shotGeneration = 0;
 
@@ -596,9 +1107,16 @@ function keepOpening(doc) {
   doc.body.style.width = `${SHOT_WIDTH}px`;
   doc.body.style.height = `${SHOT_HEIGHT}px`;
   doc.body.style.overflow = "hidden";
-  doc.querySelectorAll(".package-intro, .package-sections, .package-close, .about, .coaches, .contact").forEach((node) => node.remove());
+  doc.querySelectorAll(".package-intro, .package-sections, .package-close").forEach((node) => node.remove());
   [...doc.querySelectorAll(".hero-copy")].slice(1).forEach((node) => node.remove());
-  doc.querySelectorAll("body > .pkg-lead").forEach((node) => node.remove());
+  doc.querySelectorAll("body > .pkg-lead, .editor-note").forEach((node) => node.remove());
+
+  // Inicio ya no tiene hero: la apertura es `.about`. No borrar esa sección.
+  if (doc.querySelector(".hero")) {
+    doc.querySelectorAll(".about, .coaches, .contact").forEach((node) => node.remove());
+  } else if (doc.querySelector(".about")) {
+    doc.querySelectorAll(".coaches, .contact").forEach((node) => node.remove());
+  }
 
   const layout = doc.querySelector(".package-layout");
   if (!layout) return;
@@ -690,7 +1208,11 @@ function mountShell(section, build) {
   nav.append(
     navItem("Dashboard", "#/", section === "inicio"),
     navItem("Páginas", "#/paginas", section === "paginas"),
-    navItem("Paquetes", "#/paquetes", section === "paquetes")
+    navItem("Paquetes", "#/paquetes", section === "paquetes"),
+    navItem("Capillas", "#/capillas", section === "capillas"),
+    navItem("Servicios", "#/servicios-catalog", section === "servicios-catalog"),
+    navItem("Artículos", "#/articulos", section === "articulos"),
+    navItem("Comentarios", "#/comentarios", section === "comentarios")
   );
   aside.append(brand, nav, userMenu("dash-logout"));
 
@@ -714,6 +1236,80 @@ function sectionHead(main, title, extra) {
   if (extra) head.append(extra);
   main.append(head);
   return head;
+}
+
+function pagesOverflowMenu() {
+  const wrap = document.createElement("div");
+  wrap.className = "pages-menu";
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "pages-menu-btn";
+  button.setAttribute("aria-label", "Más opciones");
+  button.setAttribute("aria-haspopup", "menu");
+  button.setAttribute("aria-expanded", "false");
+  button.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="4.5" r="1.6" fill="currentColor"/><circle cx="10" cy="10" r="1.6" fill="currentColor"/><circle cx="10" cy="15.5" r="1.6" fill="currentColor"/></svg>';
+
+  const menu = document.createElement("div");
+  menu.className = "pages-menu-panel";
+  menu.setAttribute("role", "menu");
+  menu.hidden = true;
+
+  const reloadBtn = document.createElement("button");
+  reloadBtn.type = "button";
+  reloadBtn.setAttribute("role", "menuitem");
+  reloadBtn.textContent = "Recargar";
+  reloadBtn.addEventListener("click", () => {
+    close();
+    reloadPagesSection();
+  });
+
+  menu.append(reloadBtn);
+  wrap.append(button, menu);
+
+  function close() {
+    menu.hidden = true;
+    button.setAttribute("aria-expanded", "false");
+    wrap.classList.remove("is-open");
+  }
+
+  function open() {
+    menu.hidden = false;
+    button.setAttribute("aria-expanded", "true");
+    wrap.classList.add("is-open");
+  }
+
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (menu.hidden) open();
+    else close();
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!wrap.contains(event.target)) close();
+  });
+
+  return wrap;
+}
+
+async function reloadPagesSection() {
+  setSaveStatus("saving");
+  try {
+    await engine.reload();
+    const content = await model.loadContent();
+    state = content;
+    engine.prepare(state);
+    state.miniatureStamps ||= {};
+    engine.list().forEach((template) => {
+      if (template.dashboard === false) return;
+      delete state.miniatureStamps[template.id];
+    });
+    renderPages();
+    setSaveStatus("saved");
+  } catch (error) {
+    setSaveStatus("error");
+    console.error(error);
+  }
 }
 
 function formatDwell(ms) {
@@ -949,7 +1545,7 @@ function renderPages() {
   mountShell("paginas", (main) => {
     const generation = ++shotGeneration;
     const jobs = [];
-    sectionHead(main, "Páginas");
+    sectionHead(main, "Páginas", pagesOverflowMenu());
     const grid = document.createElement("div");
     grid.className = "page-grid";
     engine.list().forEach((template) => {
@@ -962,6 +1558,156 @@ function renderPages() {
   });
 }
 
+function commentStatusLabel(status) {
+  if (status === "approved") return "Publicado";
+  if (status === "archived") return "Archivado";
+  return "Pendiente";
+}
+
+function formatCommentDate(value) {
+  const date = new Date(Number(value) || 0);
+  if (Number.isNaN(date.getTime()) || !value) return "";
+  return date.toLocaleString("es-MX", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+async function setCommentStatus(id, status) {
+  const response = await fetch(`/api/comments/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || "No se pudo actualizar.");
+  return payload.comment;
+}
+
+function renderComments() {
+  mountShell("comentarios", (main) => {
+    sectionHead(main, "Comentarios");
+    const lede = document.createElement("p");
+    lede.className = "dash-lede";
+    lede.textContent =
+      "Los visitantes dejan comentarios en Servicios. Autorice los que deben mostrarse en la página o archívelos.";
+    main.append(lede);
+
+    const filters = document.createElement("div");
+    filters.className = "comments-admin-filters";
+    const tabs = [
+      { id: "pending", label: "Pendientes" },
+      { id: "approved", label: "Publicados" },
+      { id: "archived", label: "Archivados" },
+      { id: "all", label: "Todos" },
+    ];
+    let active = "pending";
+    const list = document.createElement("div");
+    list.className = "comments-admin-list";
+    let cache = [];
+
+    const paint = () => {
+      filters.querySelectorAll("button").forEach((btn) => {
+        btn.classList.toggle("is-active", btn.dataset.filter === active);
+      });
+      const rows =
+        active === "all" ? cache : cache.filter((item) => item.status === active);
+      list.replaceChildren();
+      if (!rows.length) {
+        const empty = document.createElement("p");
+        empty.className = "dash-lede";
+        empty.textContent = "No hay comentarios en esta vista.";
+        list.append(empty);
+        return;
+      }
+      rows.forEach((item) => {
+        const card = document.createElement("article");
+        card.className = "comments-admin-card";
+        const meta = document.createElement("div");
+        meta.className = "comments-admin-meta";
+        const name = document.createElement("strong");
+        name.textContent = item.name || "Sin nombre";
+        const badge = document.createElement("span");
+        badge.className = `comments-admin-badge is-${item.status || "pending"}`;
+        badge.textContent = commentStatusLabel(item.status);
+        const when = document.createElement("time");
+        when.textContent = formatCommentDate(item.createdAt);
+        meta.append(name, badge, when);
+        const body = document.createElement("p");
+        body.textContent = item.message || "";
+        const actions = document.createElement("div");
+        actions.className = "comments-admin-actions";
+        if (item.status !== "approved") {
+          const approve = document.createElement("button");
+          approve.type = "button";
+          approve.className = "dash-new-btn";
+          approve.textContent = "Autorizar";
+          approve.addEventListener("click", async () => {
+            approve.disabled = true;
+            try {
+              const updated = await setCommentStatus(item.id, "approved");
+              const idx = cache.findIndex((row) => row.id === item.id);
+              if (idx >= 0) cache[idx] = updated;
+              paint();
+            } catch (error) {
+              approve.disabled = false;
+              alert(error.message || "No se pudo autorizar.");
+            }
+          });
+          actions.append(approve);
+        }
+        if (item.status !== "archived") {
+          const archive = document.createElement("button");
+          archive.type = "button";
+          archive.className = "comments-admin-archive";
+          archive.textContent = "Archivar";
+          archive.addEventListener("click", async () => {
+            archive.disabled = true;
+            try {
+              const updated = await setCommentStatus(item.id, "archived");
+              const idx = cache.findIndex((row) => row.id === item.id);
+              if (idx >= 0) cache[idx] = updated;
+              paint();
+            } catch (error) {
+              archive.disabled = false;
+              alert(error.message || "No se pudo archivar.");
+            }
+          });
+          actions.append(archive);
+        }
+        card.append(meta, body, actions);
+        list.append(card);
+      });
+    };
+
+    tabs.forEach((tab) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.dataset.filter = tab.id;
+      btn.textContent = tab.label;
+      btn.addEventListener("click", () => {
+        active = tab.id;
+        paint();
+      });
+      filters.append(btn);
+    });
+
+    main.append(filters, list);
+    list.textContent = "Cargando…";
+    fetch("/api/comments/all", { credentials: "same-origin" })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || "error");
+        cache = Array.isArray(payload.comments) ? payload.comments : [];
+        paint();
+      })
+      .catch(() => {
+        list.textContent = "No se pudieron cargar los comentarios.";
+      });
+  });
+}
+
 function renderPackages() {
   mountShell("paquetes", (main) => {
     const template = engine.get("paquete");
@@ -969,9 +1715,9 @@ function renderPackages() {
     const jobs = [];
     sectionHead(main, "Paquetes", newPackageButton(template));
     const grid = document.createElement("div");
-    grid.className = "page-grid";
-    engine.pages(state, template).forEach((page) => {
-      grid.append(packageThumb(page, template, jobs));
+    grid.className = "page-grid packages-sortable";
+    engine.pages(state, template).forEach((page, index) => {
+      grid.append(packageThumb(page, template, jobs, index + 1));
     });
     if (!grid.childElementCount) {
       const empty = document.createElement("p");
@@ -980,9 +1726,295 @@ function renderPackages() {
       main.append(empty);
     } else {
       main.append(grid);
+      wirePackageReorder(grid, template);
     }
     refreshMiniatures(jobs, generation);
   });
+}
+
+function createArticuloForm(template, onCreated) {
+  const form = document.createElement("form");
+  form.className = "create-form create-form-modal";
+  const input = document.createElement("input");
+  input.name = "title";
+  input.required = true;
+  input.placeholder = "Título del nuevo artículo";
+  input.autocomplete = "off";
+  const button = document.createElement("button");
+  button.type = "submit";
+  button.textContent = "Crear artículo";
+  form.append(input, button);
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const page = engine.clonePage(template, engine.source(state, template), input.value, state);
+    engine.pages(state, template).push(page);
+    scheduleSave();
+    onCreated?.(page);
+  });
+  return form;
+}
+
+function newArticuloButton(template) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "dash-new-btn";
+  button.textContent = "Nuevo artículo";
+  button.addEventListener("click", () => {
+    let dialog;
+    const form = createArticuloForm(template, (page) => {
+      dialog?.close();
+      location.hash = `#/articulos/${page.id}`;
+    });
+    dialog = openDialog({
+      title: "Nuevo artículo",
+      body: form,
+      hideConfirm: true,
+      hideCancel: true,
+    });
+  });
+  return button;
+}
+
+async function uploadArticuloImage(file) {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetch("/api/upload", {
+    method: "POST",
+    credentials: "same-origin",
+    body: form,
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || "No se pudo subir la imagen");
+  return payload.url;
+}
+
+function formatArticuloListDate(value) {
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return value || "";
+  return date.toLocaleDateString("es-MX", { year: "numeric", month: "short", day: "numeric" });
+}
+
+function renderArticulos() {
+  mountShell("articulos", (main) => {
+    const template = engine.get("articulo");
+    sectionHead(main, "Artículos", newArticuloButton(template));
+    const lede = document.createElement("p");
+    lede.className = "dash-lede";
+    lede.textContent = "Estos artículos aparecen como tarjetas a pantalla completa en la página Nosotros.";
+    main.append(lede);
+    const list = document.createElement("div");
+    list.className = "articulos-admin-list";
+    const pages = engine.pages(state, template);
+    if (!pages.length) {
+      const empty = document.createElement("p");
+      empty.className = "dash-lede";
+      empty.textContent = "Aún no hay artículos. Cree el primero con el botón Nuevo artículo.";
+      main.append(empty);
+      return;
+    }
+    pages.forEach((page) => {
+      const card = document.createElement("article");
+      card.className = `articulos-admin-card${page.hidden ? " is-hidden" : ""}`;
+      const cover = document.createElement("div");
+      cover.className = "articulos-admin-cover";
+      if (page.images?.[0]?.src) {
+        const img = document.createElement("img");
+        img.src = page.images[0].src;
+        img.alt = "";
+        cover.append(img);
+      }
+      const body = document.createElement("div");
+      body.className = "articulos-admin-body";
+      const title = document.createElement("h2");
+      title.textContent = page.title || "Sin título";
+      const meta = document.createElement("p");
+      meta.textContent = [
+        formatArticuloListDate(page.date),
+        `${page.images?.length || 0} imagen${(page.images?.length || 0) === 1 ? "" : "es"}`,
+        page.hidden ? "Oculto" : "Publicado",
+      ].filter(Boolean).join(" · ");
+      const actions = document.createElement("div");
+      actions.className = "articulos-admin-actions";
+      const edit = document.createElement("a");
+      edit.className = "dash-new-btn";
+      edit.href = `#/articulos/${page.id}`;
+      edit.textContent = "Editar";
+      const hide = document.createElement("button");
+      hide.type = "button";
+      hide.className = "comments-admin-archive";
+      hide.textContent = page.hidden ? "Mostrar" : "Ocultar";
+      hide.addEventListener("click", () => {
+        page.hidden = !page.hidden;
+        scheduleSave();
+        renderArticulos();
+      });
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "comments-admin-archive";
+      remove.textContent = "Eliminar";
+      remove.addEventListener("click", () => {
+        openDialog({
+          title: "Eliminar artículo",
+          body: `¿Eliminar «${page.title}»? Esta acción no se puede deshacer.`,
+          confirmLabel: "Eliminar",
+          tone: "danger",
+          onConfirm() {
+            const listPages = engine.pages(state, template);
+            const index = listPages.findIndex((item) => item.id === page.id);
+            if (index >= 0) listPages.splice(index, 1);
+            scheduleSave();
+            renderArticulos();
+          },
+        });
+      });
+      actions.append(edit, hide, remove);
+      body.append(title, meta, actions);
+      card.append(cover, body);
+      list.append(card);
+    });
+    main.append(list);
+  });
+}
+
+function renderArticuloEditor(page) {
+  document.body.classList.add("admin-editing");
+  document.body.classList.remove("admin-shell");
+  page.images = Array.isArray(page.images) ? page.images : [];
+  const maxImages = window.ShalomModel.ARTICULO_MAX_IMAGES || 20;
+  const sheet = document.createElement("div");
+  sheet.className = "editor-sheet articulo-editor";
+
+  const form = document.createElement("form");
+  form.className = "articulo-form";
+  form.innerHTML = `
+    <label>Título
+      <input name="title" type="text" required maxlength="140" />
+    </label>
+    <label>Fecha
+      <input name="date" type="date" required />
+    </label>
+    <div class="articulo-rte">
+      <div class="articulo-rte-label">Texto</div>
+      <div class="articulo-rte-toolbar" role="toolbar" aria-label="Formato">
+        <button type="button" data-cmd="bold"><b>B</b></button>
+        <button type="button" data-cmd="italic"><i>I</i></button>
+        <button type="button" data-cmd="insertUnorderedList">• Lista</button>
+        <button type="button" data-cmd="insertOrderedList">1. Lista</button>
+        <button type="button" data-cmd="createLink">Enlace</button>
+      </div>
+      <div class="articulo-rte-body" contenteditable="true" role="textbox" aria-multiline="true"></div>
+    </div>
+    <div class="articulo-images">
+      <div class="articulo-images-head">
+        <strong>Imágenes</strong>
+        <span class="articulo-images-count"></span>
+      </div>
+      <div class="articulo-images-grid"></div>
+      <label class="articulo-upload-btn">
+        Agregar imágenes
+        <input type="file" accept="image/*" multiple hidden />
+      </label>
+      <p class="dash-lede articulo-images-hint">Máximo ${maxImages}. Se optimizan automáticamente a WebP.</p>
+    </div>
+  `;
+
+  const titleInput = form.querySelector('input[name="title"]');
+  const dateInput = form.querySelector('input[name="date"]');
+  const rte = form.querySelector(".articulo-rte-body");
+  const grid = form.querySelector(".articulo-images-grid");
+  const count = form.querySelector(".articulo-images-count");
+  const fileInput = form.querySelector('input[type="file"]');
+
+  titleInput.value = page.title || "";
+  dateInput.value = page.date || "";
+  rte.innerHTML = page.body || "<p></p>";
+
+  const paintImages = () => {
+    grid.replaceChildren();
+    count.textContent = `${page.images.length} / ${maxImages}`;
+    page.images.forEach((image, index) => {
+      const item = document.createElement("div");
+      item.className = "articulo-image-item";
+      const img = document.createElement("img");
+      img.src = image.src;
+      img.alt = image.alt || "";
+      const alt = document.createElement("input");
+      alt.type = "text";
+      alt.placeholder = "Texto alternativo";
+      alt.value = image.alt || "";
+      alt.addEventListener("input", () => {
+        page.images[index].alt = alt.value;
+        scheduleSave();
+      });
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "articulo-image-remove";
+      remove.textContent = "Quitar";
+      remove.addEventListener("click", () => {
+        page.images.splice(index, 1);
+        paintImages();
+        scheduleSave();
+      });
+      item.append(img, alt, remove);
+      grid.append(item);
+    });
+  };
+  paintImages();
+
+  form.querySelectorAll(".articulo-rte-toolbar button").forEach((button) => {
+    button.addEventListener("click", () => {
+      const cmd = button.dataset.cmd;
+      if (cmd === "createLink") {
+        const url = window.prompt("URL del enlace");
+        if (url) document.execCommand(cmd, false, url);
+      } else {
+        document.execCommand(cmd, false, null);
+      }
+      rte.focus();
+      page.body = window.ShalomModel.sanitizeArticuloHtml(rte.innerHTML);
+      scheduleSave();
+    });
+  });
+
+  const persistText = () => {
+    page.title = titleInput.value.trim() || "Nuevo artículo";
+    page.date = dateInput.value || page.date;
+    page.body = window.ShalomModel.sanitizeArticuloHtml(rte.innerHTML);
+    scheduleSave();
+  };
+  titleInput.addEventListener("input", persistText);
+  dateInput.addEventListener("change", persistText);
+  rte.addEventListener("input", persistText);
+
+  fileInput.addEventListener("change", async () => {
+    const files = [...(fileInput.files || [])];
+    fileInput.value = "";
+    if (!files.length) return;
+    const room = maxImages - page.images.length;
+    if (room <= 0) {
+      window.alert(`Solo se permiten ${maxImages} imágenes por artículo.`);
+      return;
+    }
+    for (const file of files.slice(0, room)) {
+      try {
+        const url = await uploadArticuloImage(file);
+        page.images.push({ src: url, alt: "" });
+      } catch (error) {
+        window.alert(error.message || "No se pudo subir la imagen");
+        break;
+      }
+    }
+    paintImages();
+    scheduleSave();
+  });
+
+  sheet.append(form);
+  app.replaceChildren(editorBar(page.title || "Artículo"), sheet);
+  const back = app.querySelector(".admin-back");
+  if (back) {
+    back.href = "#/articulos";
+    back.setAttribute("aria-label", "Volver a Artículos");
+  }
 }
 
 function editorBar(title) {
@@ -990,9 +2022,31 @@ function editorBar(title) {
   bar.className = "admin-bar";
   const back = document.createElement("a");
   const onPackage = location.hash.includes("/edit/paquete/");
-  back.href = onPackage ? "#/paquetes" : "#/paginas";
+  const onCapilla = location.hash.includes("/edit/capilla/");
+  const onServicio = location.hash.includes("/edit/servicio/");
+  const onArticulo = location.hash.startsWith("#/articulos/");
+  back.href = onPackage
+    ? "#/paquetes"
+    : onCapilla
+      ? "#/capillas"
+      : onServicio
+        ? "#/servicios-catalog"
+        : onArticulo
+          ? "#/articulos"
+          : "#/paginas";
   back.className = "admin-back";
-  back.setAttribute("aria-label", onPackage ? "Volver a Paquetes" : "Volver a Páginas");
+  back.setAttribute(
+    "aria-label",
+    onPackage
+      ? "Volver a Paquetes"
+      : onCapilla
+        ? "Volver a Capillas"
+        : onServicio
+          ? "Volver a Servicios"
+          : onArticulo
+            ? "Volver a Artículos"
+            : "Volver a Páginas"
+  );
   back.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6.5 9 12l5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const titleWrap = document.createElement("div");
   titleWrap.className = "admin-title";
@@ -1022,17 +2076,51 @@ function renderEditor(template, data, { blueprint }) {
   app.replaceChildren(editorBar(title), sheet);
 }
 
+function collectionHome(template) {
+  if (template?.pagesKey === "capillas") return "#/capillas";
+  if (template?.pagesKey === "serviciosCatalog") return "#/servicios-catalog";
+  if (template?.pagesKey === "articulos") return "#/articulos";
+  return "#/paquetes";
+}
+
 function route() {
   const hash = location.hash || "#/";
   if (hash === "#/" || hash === "#" || hash === "#/inicio") return renderHome();
   if (hash === "#/paginas") return renderPages();
   if (hash === "#/paquetes") return renderPackages();
+  if (hash === "#/capillas") return renderCapillas();
+  if (hash === "#/servicios-catalog") return renderServiciosCatalog();
+  if (hash === "#/articulos") return renderArticulos();
+  if (hash === "#/comentarios") return renderComments();
+  const articuloMatch = hash.match(/^#\/articulos\/([a-z0-9-]+)$/);
+  if (articuloMatch) {
+    const template = engine.get("articulo");
+    const page = engine.pages(state, template).find((item) => item.id === articuloMatch[1]);
+    if (!page) {
+      location.hash = "#/articulos";
+      return;
+    }
+    return renderArticuloEditor(page);
+  }
   if (hash === "#/edit/plantilla") {
     location.hash = "#/paquetes";
     return;
   }
   if (hash === "#/edit/paquete") {
     location.hash = "#/paquetes";
+    return;
+  }
+  if (hash === "#/edit/capilla") {
+    location.hash = "#/capillas";
+    return;
+  }
+  if (hash === "#/edit/servicio") {
+    location.hash = "#/servicios-catalog";
+    return;
+  }
+  if (hash === "#/edit/articulo" || hash.startsWith("#/edit/articulo/")) {
+    const id = hash.match(/^#\/edit\/articulo\/([a-z0-9-]+)$/)?.[1];
+    location.hash = id ? `#/articulos/${id}` : "#/articulos";
     return;
   }
   const match = hash.match(/^#\/edit\/([a-z0-9-]+)(?:\/([a-z0-9-]+))?$/);
@@ -1043,12 +2131,16 @@ function route() {
   }
   if (template.singleton) return renderEditor(template, engine.source(state, template), { blueprint: false });
   if (!match[2]) {
-    location.hash = "#/paquetes";
+    location.hash = collectionHome(template);
+    return;
+  }
+  if (template.id === "articulo") {
+    location.hash = `#/articulos/${match[2]}`;
     return;
   }
   const page = engine.pages(state, template).find((item) => item.id === match[2]);
   if (!page) {
-    location.hash = "#/paquetes";
+    location.hash = collectionHome(template);
     return;
   }
   renderEditor(template, page, { blueprint: false });
