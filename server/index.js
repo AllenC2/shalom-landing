@@ -23,14 +23,28 @@ import {
   parseCommentPayload,
   updateCommentStatus,
 } from "./comments.js";
+import { serveResizedMedia } from "./media.js";
 
 const PORT = Number(process.env.PORT || 3000);
 const UPLOADS = path.join(ROOT, "assets", "uploads");
 const app = new Hono();
 
-app.use("*", async (c, next) => {
+app.use("/api/*", async (c, next) => {
   await next();
   c.header("Cache-Control", "no-store");
+});
+
+app.get("/media", serveResizedMedia);
+
+app.use("/assets/*", async (c, next) => {
+  await next();
+  if (c.res.status >= 400) return;
+  const pathname = new URL(c.req.url).pathname;
+  if (/\/uploads\//.test(pathname)) {
+    c.header("Cache-Control", "public, max-age=31536000, immutable");
+  } else {
+    c.header("Cache-Control", "public, max-age=604800, stale-while-revalidate=86400");
+  }
 });
 
 app.get("/api/me", async (c) => {
@@ -155,7 +169,7 @@ app.post("/api/upload", requireAdmin, async (c) => {
         fit: "inside",
         withoutEnlargement: true,
       })
-      .webp({ quality: 82, effort: 4 })
+      .webp({ quality: 78, effort: 5 })
       .toBuffer();
   } catch {
     return c.json({ error: "No se pudo optimizar la imagen" }, 400);
@@ -206,7 +220,14 @@ app.use("/vendor/html2canvas.min.js", requireAdmin);
 
 app.use("/*", serveStatic({ root: "./" }));
 
-app.notFound((c) => c.text("Not found", 404));
+app.notFound(async (c) => {
+  try {
+    const html = await readFile(path.join(ROOT, "404.html"), "utf8");
+    return c.html(html, 404);
+  } catch {
+    return c.text("Not found", 404);
+  }
+});
 
 serve({ fetch: app.fetch, port: PORT, hostname: "0.0.0.0" }, (info) => {
   console.log(`Serving Shalom at http://127.0.0.1:${info.port}/`);

@@ -27,7 +27,8 @@ ShalomTemplates.define({
         "inicio.about.image",
         aboutData.image,
         aboutData.alt,
-        "inicio.about.alt"
+        "inicio.about.alt",
+        { width: ShalomModel.MEDIA_WIDTHS.hero, lazy: false, priority: true }
       )
     );
 
@@ -82,10 +83,12 @@ ShalomTemplates.define({
       const card = el("article", `chapel-card${mode.edit ? " is-readonly" : ""}`);
       if (!mode.edit) card.dataset.href = `#/${item.id}`;
       const photo = el("div", "chapel-card-photo");
-      const image = document.createElement("img");
-      image.src = item.image;
-      image.alt = item.alt || item.name;
-      photo.append(image);
+      photo.append(
+        ShalomModel.createImage(item.image, {
+          alt: item.alt || item.name,
+          width: ShalomModel.MEDIA_WIDTHS.card,
+        })
+      );
       const body = el("div", "chapel-card-body");
       const name = el("h3");
       name.textContent = item.name;
@@ -145,22 +148,37 @@ ShalomTemplates.define({
 
     const contact = el("section", "contact");
     const contactCopy = el("div", "section-copy");
+    const contactData = inicio.contact || {};
     contactCopy.append(
-      text("p", "eyebrow", "inicio.contact.eyebrow", inicio.contact.eyebrow),
-      text("h2", "", "inicio.contact.title", inicio.contact.title),
-      text("p", "lede", "inicio.contact.lede", inicio.contact.lede, { multiline: true })
+      text("p", "eyebrow", "inicio.contact.eyebrow", contactData.eyebrow || ""),
+      text("h2", "", "inicio.contact.title", contactData.title || ""),
+      text("p", "lede", "inicio.contact.lede", contactData.lede || "", { multiline: true })
     );
-    const contactPoints = inicio.contact.points || [];
+    const contactPoints = contactData.points || [];
     if (contactPoints.length || mode.edit) {
       const points = el("ul", "contact-meta");
       (contactPoints.length ? contactPoints : [""]).forEach((point, index) => {
         points.append(text("li", "", `inicio.contact.points.${index}`, point));
       });
-      if (contactPoints.length) contactCopy.append(points);
+      if (contactPoints.length || mode.edit) contactCopy.append(points);
     }
     contact.append(contactCopy);
+    if (mode.edit) {
+      const formNote = el("p", "editor-note");
+      formNote.textContent = "El formulario de contacto se muestra en el sitio público.";
+      contact.append(formNote);
+    }
     root.append(contact);
 
     root.append(text("p", "pkg-lead", "inicio.footer", inicio.footer));
+    if (mode.edit) {
+      const phoneNote = el("p", "editor-note");
+      phoneNote.textContent = "Teléfono del footer";
+      root.append(
+        phoneNote,
+        text("p", "pkg-lead", "inicio.contact.phone", contactData.phone || ""),
+        text("p", "editor-note", "inicio.contact.phoneHref", contactData.phoneHref || "tel:+523313383886")
+      );
+    }
   },
 });

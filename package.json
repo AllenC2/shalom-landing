@@ -15,7 +15,6 @@
     "bcryptjs": "^3.0.2",
     "chart.js": "^4.5.1",
     "chartjs-plugin-datalabels": "^2.2.0",
-    "hono": "^4.7.5",
-    "sharp": "^0.35.5"
+    "hono": "^4.7.5"
   }
 }

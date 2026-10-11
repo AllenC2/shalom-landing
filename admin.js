@@ -447,10 +447,83 @@ function iconButton(kind, label, onClick) {
   return button;
 }
 
+function isMobileAdmin() {
+  return window.matchMedia("(max-width: 860px)").matches;
+}
+
+function thumbMoveControls() {
+  const wrap = document.createElement("div");
+  wrap.className = "thumb-move";
+  const up = document.createElement("button");
+  up.type = "button";
+  up.className = "thumb-move-btn";
+  up.dataset.move = "up";
+  up.setAttribute("aria-label", "Subir posición");
+  up.title = "Subir";
+  up.innerHTML =
+    '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 9.5 8 6l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const down = document.createElement("button");
+  down.type = "button";
+  down.className = "thumb-move-btn";
+  down.dataset.move = "down";
+  down.setAttribute("aria-label", "Bajar posición");
+  down.title = "Bajar";
+  down.innerHTML =
+    '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 6.5 8 10l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  wrap.append(up, down);
+  wrap.addEventListener("pointerdown", (event) => event.stopPropagation());
+  return wrap;
+}
+
+function updateThumbMoveState(grid) {
+  const items = [...grid.querySelectorAll(":scope > .thumb-wrap")];
+  items.forEach((wrap, index) => {
+    const up = wrap.querySelector('.thumb-move-btn[data-move="up"]');
+    const down = wrap.querySelector('.thumb-move-btn[data-move="down"]');
+    if (up) up.disabled = index === 0;
+    if (down) down.disabled = index === items.length - 1;
+  });
+}
+
+function moveThumbInGrid(grid, wrap, direction, syncFn) {
+  const items = [...grid.querySelectorAll(":scope > .thumb-wrap")];
+  const index = items.indexOf(wrap);
+  if (index < 0) return;
+  if (direction === "up" && index > 0) {
+    grid.insertBefore(wrap, items[index - 1]);
+  } else if (direction === "down" && index < items.length - 1) {
+    grid.insertBefore(wrap, items[index + 1].nextSibling);
+  } else {
+    return;
+  }
+  updatePackageOrderBadges(grid);
+  updateThumbMoveState(grid);
+  syncFn?.(grid);
+}
+
+function wireThumbMoveButtons(grid, syncFn) {
+  if (grid.dataset.moveWired === "1") return;
+  grid.dataset.moveWired = "1";
+  grid.addEventListener(
+    "click",
+    (event) => {
+      const btn = event.target.closest(".thumb-move-btn");
+      if (!btn || btn.disabled || !grid.contains(btn)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const wrap = btn.closest(".thumb-wrap");
+      if (!wrap || !grid.contains(wrap)) return;
+      moveThumbInGrid(grid, wrap, btn.dataset.move, syncFn);
+    },
+    true
+  );
+  updateThumbMoveState(grid);
+}
+
 function packageThumb(page, template, jobs, order) {
   const wrap = document.createElement("div");
   wrap.className = `thumb-wrap${page.hidden ? " is-hidden" : ""}`;
-  wrap.draggable = true;
+  wrap.draggable = !isMobileAdmin();
   wrap.dataset.packageId = page.id;
 
   const link = shotThumb(
@@ -521,7 +594,7 @@ function packageThumb(page, template, jobs, order) {
     }
   });
 
-  wrap.append(link, actions, orderBadge);
+  wrap.append(link, actions, orderBadge, thumbMoveControls());
   return wrap;
 }
 
@@ -533,6 +606,7 @@ function updatePackageOrderBadges(grid) {
       badge.title = `Orden ${index + 1} en el carrusel`;
     }
   });
+  updateThumbMoveState(grid);
 }
 
 function syncPackageOrderFromGrid(grid, template) {
@@ -550,11 +624,16 @@ function syncPackageOrderFromGrid(grid, template) {
 
 function wirePackageReorder(grid, template) {
   let dragId = "";
+  wireThumbMoveButtons(grid, () => syncPackageOrderFromGrid(grid, template));
 
   grid.addEventListener("dragstart", (event) => {
+    if (isMobileAdmin()) {
+      event.preventDefault();
+      return;
+    }
     const wrap = event.target.closest(".thumb-wrap");
     if (!wrap || !grid.contains(wrap)) return;
-    if (event.target.closest(".thumb-actions")) {
+    if (event.target.closest(".thumb-actions, .thumb-move")) {
       event.preventDefault();
       return;
     }
@@ -574,6 +653,7 @@ function wirePackageReorder(grid, template) {
   });
 
   grid.addEventListener("dragover", (event) => {
+    if (isMobileAdmin()) return;
     const target = event.target.closest(".thumb-wrap");
     if (!dragId || !target || target.dataset.packageId === dragId) return;
     event.preventDefault();
@@ -668,7 +748,7 @@ function newCapillaButton(template) {
 function capillaThumb(page, template, jobs, order) {
   const wrap = document.createElement("div");
   wrap.className = `thumb-wrap${page.hidden ? " is-hidden" : ""}`;
-  wrap.draggable = true;
+  wrap.draggable = !isMobileAdmin();
   wrap.dataset.packageId = page.id;
 
   const link = shotThumb(
@@ -739,7 +819,7 @@ function capillaThumb(page, template, jobs, order) {
     }
   });
 
-  wrap.append(link, actions, orderBadge);
+  wrap.append(link, actions, orderBadge, thumbMoveControls());
   return wrap;
 }
 
@@ -758,11 +838,16 @@ function syncCapillaOrderFromGrid(grid, template) {
 
 function wireCapillaReorder(grid, template) {
   let dragId = "";
+  wireThumbMoveButtons(grid, () => syncCapillaOrderFromGrid(grid, template));
 
   grid.addEventListener("dragstart", (event) => {
+    if (isMobileAdmin()) {
+      event.preventDefault();
+      return;
+    }
     const wrap = event.target.closest(".thumb-wrap");
     if (!wrap || !grid.contains(wrap)) return;
-    if (event.target.closest(".thumb-actions")) {
+    if (event.target.closest(".thumb-actions, .thumb-move")) {
       event.preventDefault();
       return;
     }
@@ -782,6 +867,7 @@ function wireCapillaReorder(grid, template) {
   });
 
   grid.addEventListener("dragover", (event) => {
+    if (isMobileAdmin()) return;
     const target = event.target.closest(".thumb-wrap");
     if (!dragId || !target || target.dataset.packageId === dragId) return;
     event.preventDefault();
@@ -878,7 +964,7 @@ function newServicioButton(template) {
 function servicioThumb(page, template, jobs, order) {
   const wrap = document.createElement("div");
   wrap.className = `thumb-wrap${page.hidden ? " is-hidden" : ""}`;
-  wrap.draggable = true;
+  wrap.draggable = !isMobileAdmin();
   wrap.dataset.packageId = page.id;
 
   const link = shotThumb(
@@ -949,7 +1035,7 @@ function servicioThumb(page, template, jobs, order) {
     }
   });
 
-  wrap.append(link, actions, orderBadge);
+  wrap.append(link, actions, orderBadge, thumbMoveControls());
   return wrap;
 }
 
@@ -968,11 +1054,16 @@ function syncServicioOrderFromGrid(grid, template) {
 
 function wireServicioReorder(grid, template) {
   let dragId = "";
+  wireThumbMoveButtons(grid, () => syncServicioOrderFromGrid(grid, template));
 
   grid.addEventListener("dragstart", (event) => {
+    if (isMobileAdmin()) {
+      event.preventDefault();
+      return;
+    }
     const wrap = event.target.closest(".thumb-wrap");
     if (!wrap || !grid.contains(wrap)) return;
-    if (event.target.closest(".thumb-actions")) {
+    if (event.target.closest(".thumb-actions, .thumb-move")) {
       event.preventDefault();
       return;
     }
@@ -992,6 +1083,7 @@ function wireServicioReorder(grid, template) {
   });
 
   grid.addEventListener("dragover", (event) => {
+    if (isMobileAdmin()) return;
     const target = event.target.closest(".thumb-wrap");
     if (!dragId || !target || target.dataset.packageId === dragId) return;
     event.preventDefault();
@@ -1180,12 +1272,116 @@ async function refreshMiniatures(jobs, generation) {
   if (changed && generation === shotGeneration) scheduleSave();
 }
 
+const ADMIN_NAV = [
+  { id: "inicio", label: "Dashboard", href: "#/", area: "dashboard", featured: true },
+  { id: "paginas", label: "Páginas", href: "#/paginas", area: "paginas" },
+  { id: "paquetes", label: "Paquetes", href: "#/paquetes", area: "paquetes" },
+  { id: "capillas", label: "Capillas", href: "#/capillas", area: "capillas" },
+  { id: "servicios-catalog", label: "Servicios", href: "#/servicios-catalog", area: "servicios" },
+  { id: "articulos", label: "Artículos", href: "#/articulos", area: "articulos" },
+  { id: "comentarios", label: "Comentarios", href: "#/comentarios", area: "comentarios" },
+];
+
 function navItem(label, href, active) {
   const link = document.createElement("a");
   link.className = `dash-nav-link${active ? " is-active" : ""}`;
   link.href = href;
   link.textContent = label;
   return link;
+}
+
+function adminBentoTile(item, active) {
+  const link = document.createElement("a");
+  link.className = `bento-tile admin-bento-tile admin-bento-tile-${item.area}${item.featured ? " is-featured" : ""}${active ? " is-active" : ""}`;
+  link.href = item.href;
+  link.style.gridArea = item.area;
+  const label = document.createElement("span");
+  label.className = "bento-tile-label";
+  label.textContent = item.label;
+  link.append(label);
+  return link;
+}
+
+function createAdminBentoMenu(section) {
+  const dialog = document.createElement("dialog");
+  dialog.className = "bento-menu admin-bento-menu";
+  dialog.id = "admin-bento-menu";
+  dialog.setAttribute("aria-label", "Menú de administración");
+
+  const panel = document.createElement("div");
+  panel.className = "bento-menu-panel";
+
+  const bar = document.createElement("header");
+  bar.className = "bento-menu-bar";
+  const logo = document.createElement("a");
+  logo.className = "logo";
+  logo.href = "#/";
+  logo.setAttribute("aria-label", "Shalom Admin, inicio");
+  logo.innerHTML = '<img src="assets/logo-shalom.png" alt="" width="204" height="60" />';
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = "icon-btn bento-close";
+  closeBtn.setAttribute("aria-label", "Cerrar menú");
+  closeBtn.innerHTML =
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  bar.append(logo, closeBtn);
+
+  const grid = document.createElement("nav");
+  grid.className = "bento-grid admin-bento-grid";
+  grid.setAttribute("aria-label", "Administración");
+  ADMIN_NAV.forEach((item) => {
+    grid.append(adminBentoTile(item, section === item.id));
+  });
+
+  const userWrap = document.createElement("div");
+  userWrap.className = "admin-bento-user";
+  userWrap.append(userMenu("admin-bento-user-menu"));
+
+  panel.append(bar, grid, userWrap);
+  dialog.append(panel);
+  return dialog;
+}
+
+function wireAdminBento(root) {
+  const toggle = root.querySelector(".dash-bento-toggle");
+  const menu = root.querySelector(".admin-bento-menu");
+  if (!toggle || !menu || menu.dataset.wired === "1") return;
+  menu.dataset.wired = "1";
+
+  const setExpanded = (open) => {
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    toggle.setAttribute("aria-label", open ? "Cerrar menú" : "Abrir menú");
+  };
+
+  const openMenu = () => {
+    if (menu.open) return;
+    if (typeof menu.showModal === "function") menu.showModal();
+    else menu.setAttribute("open", "");
+    setExpanded(true);
+  };
+
+  const closeMenu = () => {
+    if (!menu.open) return;
+    if (typeof menu.close === "function") menu.close();
+    else menu.removeAttribute("open");
+    setExpanded(false);
+  };
+
+  toggle.addEventListener("click", () => {
+    if (menu.open) closeMenu();
+    else openMenu();
+  });
+  menu.querySelector(".bento-close")?.addEventListener("click", closeMenu);
+  menu.addEventListener("click", (event) => {
+    if (event.target === menu) closeMenu();
+  });
+  menu.addEventListener("close", () => setExpanded(false));
+  menu.querySelectorAll("a").forEach((link) => {
+    link.addEventListener("click", () => closeMenu());
+  });
+  window.matchMedia("(max-width: 860px)").addEventListener("change", (event) => {
+    if (!event.matches) closeMenu();
+  });
 }
 
 function mountShell(section, build) {
@@ -1197,30 +1393,48 @@ function mountShell(section, build) {
 
   const aside = document.createElement("aside");
   aside.className = "dash-aside";
+
+  const head = document.createElement("div");
+  head.className = "dash-aside-head";
   const brand = document.createElement("a");
   brand.className = "dash-brand";
   brand.href = "#/";
-  brand.setAttribute("aria-label", "Shalom, inicio admin");
-  brand.innerHTML = '<img src="assets/logo-shalom.png" alt="SHALOM Servicios Funerarios" width="204" height="60" />';
+  brand.setAttribute("aria-label", "Shalom Admin, inicio");
+  brand.innerHTML =
+    '<img src="assets/logo-shalom.png" alt="SHALOM Servicios Funerarios" width="204" height="60" /><span class="dash-brand-mark" aria-hidden="true">|</span><span class="dash-brand-admin">Admin</span>';
+
+  const actions = document.createElement("div");
+  actions.className = "dash-aside-actions";
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "bento-toggle dash-bento-toggle";
+  toggle.setAttribute("aria-expanded", "false");
+  toggle.setAttribute("aria-controls", "admin-bento-menu");
+  toggle.setAttribute("aria-label", "Abrir menú");
+  toggle.innerHTML = '<span class="bento-toggle-icon" aria-hidden="true"><i></i><i></i><i></i></span>';
+  actions.append(toggle);
+  head.append(brand, actions);
+
   const nav = document.createElement("nav");
   nav.className = "dash-nav";
   nav.setAttribute("aria-label", "Administración");
-  nav.append(
-    navItem("Dashboard", "#/", section === "inicio"),
-    navItem("Páginas", "#/paginas", section === "paginas"),
-    navItem("Paquetes", "#/paquetes", section === "paquetes"),
-    navItem("Capillas", "#/capillas", section === "capillas"),
-    navItem("Servicios", "#/servicios-catalog", section === "servicios-catalog"),
-    navItem("Artículos", "#/articulos", section === "articulos"),
-    navItem("Comentarios", "#/comentarios", section === "comentarios")
-  );
-  aside.append(brand, nav, userMenu("dash-logout"));
+  ADMIN_NAV.forEach((item) => {
+    nav.append(navItem(item.label, item.href, section === item.id));
+  });
+
+  aside.append(head, nav, userMenu("dash-logout"));
 
   const main = document.createElement("main");
   main.className = "dash-main";
   build(main);
+
   shell.append(aside, main);
   app.replaceChildren(shell);
+
+  document.querySelector("#admin-bento-menu")?.remove();
+  const bento = createAdminBentoMenu(section);
+  app.append(bento);
+  wireAdminBento(app);
 }
 
 function sectionHead(main, title, extra) {
@@ -1296,7 +1510,7 @@ async function reloadPagesSection() {
   setSaveStatus("saving");
   try {
     await engine.reload();
-    const content = await model.loadContent();
+    const content = await model.loadContent({ preferLocal: true });
     state = content;
     engine.prepare(state);
     state.miniatureStamps ||= {};
@@ -2157,7 +2371,7 @@ fetch("/api/me", { credentials: "same-origin" })
   .then((me) => {
     if (!me) return null;
     currentUser = me.user || "";
-    return engine.load().then(() => model.loadContent());
+    return engine.load().then(() => model.loadContent({ preferLocal: true }));
   })
   .then((content) => {
     if (!content) return;

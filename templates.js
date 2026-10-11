@@ -91,13 +91,24 @@
     return node;
   }
 
-  function imageFrame(tag, className, path, src, alt, altPath) {
+  function imageFrame(tag, className, path, src, alt, altPath, mediaOptions = {}) {
     const node = el(tag || "div", className);
     node.dataset.image = path;
     if (altPath) node.dataset.alt = altPath;
-    const image = document.createElement("img");
-    image.src = src || "";
-    image.alt = alt || "";
+    const image =
+      window.ShalomModel && window.ShalomModel.createImage
+        ? window.ShalomModel.createImage(src || "", {
+            alt: alt || "",
+            width: mediaOptions.width || window.ShalomModel.MEDIA_WIDTHS?.hero || 1200,
+            lazy: mediaOptions.lazy !== false,
+            priority: Boolean(mediaOptions.priority),
+          })
+        : (() => {
+            const fallback = document.createElement("img");
+            fallback.src = src || "";
+            fallback.alt = alt || "";
+            return fallback;
+          })();
     node.append(image);
     return node;
   }
@@ -211,7 +222,15 @@
           });
           const payload = await response.json().catch(() => ({}));
           if (!response.ok) throw new Error(payload.error || "No se pudo subir la imagen");
-          image.src = payload.url;
+          if (window.ShalomModel?.bindImage) {
+            window.ShalomModel.bindImage(image, payload.url, {
+              alt: image.alt || "",
+              width: window.ShalomModel.MEDIA_WIDTHS?.hero || 1200,
+              lazy: false,
+            });
+          } else {
+            image.src = payload.url;
+          }
           setPath(data, path, payload.url);
           if (node.dataset.alt && !getPath(data, node.dataset.alt)) setPath(data, node.dataset.alt, file.name);
           hooks.onChange();

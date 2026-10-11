@@ -17,12 +17,12 @@
     />
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body>
+  <body class="is-booting">
     <div class="sheet">
       <header class="top">
           <div class="brand">
             <a class="logo" href="#home" aria-label="Shalom, inicio">
-              <img src="assets/logo-shalom.png" alt="SHALOM Servicios Funerarios" width="204" height="60" />
+              <img src="assets/logo-shalom.png" alt="SHALOM Servicios Funerarios" width="204" height="60" decoding="async" fetchpriority="high" />
             </a>
             <nav class="links" aria-label="Primary">
               <a href="#home">Inicio</a>
@@ -56,23 +56,116 @@
               Enviar un Whatsapp
             </a>
           </div>
+          <button
+            type="button"
+            class="bento-toggle"
+            id="bento-toggle"
+            aria-expanded="false"
+            aria-controls="bento-menu"
+            aria-label="Abrir menú"
+          >
+            <span class="bento-toggle-icon" aria-hidden="true">
+              <i></i><i></i><i></i>
+            </span>
+          </button>
       </header>
 
-      <div id="views">
+      <dialog class="bento-menu" id="bento-menu" aria-label="Menú">
+        <div class="bento-menu-panel">
+          <header class="bento-menu-bar">
+            <a class="logo" href="#home" aria-label="Shalom, inicio">
+              <img src="assets/logo-shalom.png" alt="" width="204" height="60" decoding="async" />
+            </a>
+            <button type="button" class="icon-btn bento-close" aria-label="Cerrar menú">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7 7l10 10M17 7 7 17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+              </svg>
+            </button>
+          </header>
+          <nav class="bento-grid" aria-label="Navegación">
+            <a class="bento-tile bento-tile-inicio" href="#home">
+              <span class="bento-tile-label">Inicio</span>
+            </a>
+            <a class="bento-tile bento-tile-paquetes" href="#/paquetes">
+              <span class="bento-tile-label">Paquetes</span>
+              <span class="bento-tile-hint">Planes integrales</span>
+            </a>
+            <a class="bento-tile bento-tile-servicios" href="#/servicios">
+              <span class="bento-tile-label">Servicios</span>
+              <span class="bento-tile-hint">Capillas y más</span>
+            </a>
+            <a class="bento-tile bento-tile-nosotros" href="#/nosotros">
+              <span class="bento-tile-label">Nosotros</span>
+              <span class="bento-tile-hint">Conoce nuestra historia</span>
+            </a>
+            <a class="bento-tile bento-tile-phone" href="tel:+523313383886">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M6.62 10.79a15.15 15.15 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.01-.24c1.12.37 2.33.57 3.58.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.4 21 3 13.6 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.46.57 3.58a1 1 0 0 1-.25 1.02l-2.2 2.19Z"
+                />
+              </svg>
+              <span class="bento-tile-label">Llamar</span>
+            </a>
+            <a
+              class="bento-tile bento-tile-whatsapp"
+              href="https://wa.me/523313383886"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.23 8.23 0 0 1 2.41 5.83c0 4.54-3.7 8.23-8.24 8.23-1.48 0-2.93-.39-4.19-1.15l-.3-.17-3.12.82.83-3.04-.2-.32a8.2 8.2 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24m4.52 10.6c-.25-.12-1.47-.72-1.7-.8-.22-.09-.39-.12-.55.12-.16.25-.64.8-.78.96-.14.17-.29.18-.54.06-.25-.12-1.05-.39-2-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.02-.38.11-.51.11-.11.25-.29.37-.43.12-.14.16-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.55-1.33-.76-1.82-.2-.48-.4-.41-.55-.42h-.48c-.17 0-.43.06-.66.31-.22.25-.86.85-.86 2.07 0 1.22.88 2.4 1 2.56.12.17 1.75 2.67 4.23 3.74 2.49 1.07 2.49.71 2.94.66.45-.04 1.47-.6 1.67-1.18.21-.58.21-1.07.14-1.18-.06-.1-.23-.17-.48-.29"
+                />
+              </svg>
+              <span class="bento-tile-label">WhatsApp</span>
+            </a>
+          </nav>
+        </div>
+      </dialog>
+
+      <div id="boot-skeleton" class="boot-skeleton" aria-hidden="true">
+        <section class="about about-hero boot-skeleton-hero">
+          <div class="about-layout">
+            <figure class="about-photo skel skel-media"></figure>
+            <div class="about-copy">
+              <p class="skel skel-line skel-brand"></p>
+              <h1 class="skel skel-line skel-title"></h1>
+              <p class="skel skel-line"></p>
+              <p class="skel skel-line skel-short"></p>
+              <div class="about-actions">
+                <span class="skel skel-btn"></span>
+                <span class="skel skel-btn"></span>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section class="coaches">
+          <div class="section-head">
+            <h2 class="skel skel-line skel-section"></h2>
+          </div>
+          <div class="boot-skeleton-cards">
+            <article class="skel skel-card"></article>
+            <article class="skel skel-card"></article>
+            <article class="skel skel-card"></article>
+          </div>
+        </section>
+      </div>
+
+      <div id="views" hidden>
       <div id="home-view">
       <section class="about about-hero" id="home">
         <div class="about-layout">
           <figure class="about-photo">
-            <img src="assets/about-equipo.webp" alt="Equipo de Servicios Funerarios Shalom" width="1600" height="1000" />
+            <img alt="" width="1600" height="1000" decoding="async" fetchpriority="high" />
           </figure>
           <div class="about-copy">
-            <p class="about-brand">Servicios Funerarios Shalom</p>
-            <h1 class="about-title">Más de 20 años acompañando a las familias</h1>
-            <p class="lede">
-              Servicio digno, humano y transparente para el momento más difícil. Paquetes completos, sin cargos innecesarios.
-            </p>
+            <p class="about-brand"></p>
+            <h1 class="about-title"></h1>
+            <p class="lede"></p>
             <div class="about-actions">
-              <a class="submit about-cta-packages" href="#/paquetes">Ver paquetes</a>
+              <a class="submit about-cta-packages" href="#/paquetes"></a>
               <a
                 class="whatsapp-link about-cta-whatsapp"
                 href="https://wa.me/523313383886"
@@ -85,7 +178,6 @@
                     d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.23 8.23 0 0 1 2.41 5.83c0 4.54-3.7 8.23-8.24 8.23-1.48 0-2.93-.39-4.19-1.15l-.3-.17-3.12.82.83-3.04-.2-.32a8.2 8.2 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24m4.52 10.6c-.25-.12-1.47-.72-1.7-.8-.22-.09-.39-.12-.55.12-.16.25-.64.8-.78.96-.14.17-.29.18-.54.06-.25-.12-1.05-.39-2-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.02-.38.11-.51.11-.11.25-.29.37-.43.12-.14.16-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.55-1.33-.76-1.82-.2-.48-.4-.41-.55-.42h-.48c-.17 0-.43.06-.66.31-.22.25-.86.85-.86 2.07 0 1.22.88 2.4 1 2.56.12.17 1.75 2.67 4.23 3.74 2.49 1.07 2.49.71 2.94.66.45-.04 1.47-.6 1.67-1.18.21-.58.21-1.07.14-1.18-.06-.1-.23-.17-.48-.29"
                   />
                 </svg>
-                Enviar un Whatsapp
               </a>
             </div>
           </div>
@@ -95,7 +187,7 @@
       <section class="coaches" id="incluye">
         <div class="section-head">
           <p class="eyebrow" hidden></p>
-          <h2>Capillas y servicios a domicilio</h2>
+          <h2></h2>
         </div>
         <div class="scroller chapel-scroller" id="chapel-scroller" tabindex="0" aria-label="Capillas y servicios"></div>
         <dialog class="modal more-services-modal" id="more-services-modal" aria-label="Más servicios">
@@ -113,11 +205,9 @@
 
       <section class="contact" id="contact">
         <div class="section-copy">
-          <p class="eyebrow">Contacto</p>
-          <h2>Deseo recibir información sobre los planes</h2>
-          <p class="lede">
-            Al llenar todos los campos, acepta que lo contactemos por correo o WhatsApp para recibir información. Tel. atención inmediata: 33 1338 3886.
-          </p>
+          <p class="eyebrow"></p>
+          <h2></h2>
+          <p class="lede"></p>
           <ul class="contact-meta" hidden></ul>
         </div>
         <form class="form" id="trial-form" novalidate>
@@ -138,10 +228,6 @@
               Servicio
               <select name="program" required>
                 <option value="">Elegir uno</option>
-                <option value="serenidad">Serenidad</option>
-                <option value="memoria">Memoria</option>
-                <option value="legado">Legado</option>
-                <option value="paz">Paz</option>
               </select>
             </label>
           </div>
@@ -217,7 +303,8 @@
         <span class="logo" aria-hidden="true">
           <img src="assets/logo-shalom.png" alt="" width="204" height="60" />
         </span>
-        <p>Shalom · Zona Metropolitana de Guadalajara</p>
+        <p class="foot-text"></p>
+        <a class="foot-phone" href="tel:+523313383886"></a>
       </footer>
     </div>
 

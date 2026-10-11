@@ -86,7 +86,11 @@ ShalomTemplates.define({
       buy.append(hrefRow);
     }
     layout.append(
-      imageFrame("figure", "package-photo", "image", pkg.image, pkg.alt, "alt"),
+      imageFrame("figure", "package-photo", "image", pkg.image, pkg.alt, "alt", {
+        width: window.ShalomModel.MEDIA_WIDTHS.hero,
+        lazy: false,
+        priority: true,
+      }),
       buy
     );
 

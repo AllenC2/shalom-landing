@@ -100,7 +100,11 @@ ShalomTemplates.define({
     }
 
     layout.append(
-      imageFrame("figure", "package-photo", "image", servicio.image, servicio.alt, "alt"),
+      imageFrame("figure", "package-photo", "image", servicio.image, servicio.alt, "alt", {
+        width: window.ShalomModel.MEDIA_WIDTHS.hero,
+        lazy: false,
+        priority: true,
+      }),
       buy
     );
 
@@ -123,10 +127,14 @@ ShalomTemplates.define({
         grid.append(row);
       } else {
         const figure = el("figure", "capilla-gallery-photo");
-        const image = document.createElement("img");
-        image.src = src;
-        image.alt = `${servicio.name || "Servicio"} — foto ${index + 1}`;
-        figure.append(image);
+        figure.append(
+          window.ShalomModel.createImage(src, {
+            alt: `${servicio.name || "Servicio"} — foto ${index + 1}`,
+            width: window.ShalomModel.MEDIA_WIDTHS.content,
+            lazy: index > 0,
+            priority: index === 0,
+          })
+        );
         grid.append(figure);
       }
     });

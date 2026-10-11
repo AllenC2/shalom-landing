@@ -7,6 +7,7 @@ node_modules/
 data/admin.json
 data/analytics.json
 data/comments.json
+data/media-cache/
 assets/uploads/*
 !assets/uploads/.gitkeep
 !data/.gitkeep

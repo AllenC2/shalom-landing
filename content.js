@@ -271,7 +271,10 @@ const SHALOM_DEFAULT = {
     contact: {
       eyebrow: "Contacto",
       title: "Deseo recibir información sobre los planes",
-      lede: "Al llenar todos los campos, acepta que lo contactemos por correo o WhatsApp para recibir información. Tel. atención inmediata: 33 1338 3886.",
+      lede: "Al llenar todos los campos, acepta que lo contactemos por correo o WhatsApp para recibir información.",
+      phoneLabel: "Atención inmediata",
+      phone: "33 1338 3886",
+      phoneHref: "tel:+523313383886",
       points: [],
     },
     footer: "Tu paz, nuestro compromiso de amor · Servicios funerarios Shalom",
@@ -601,6 +604,14 @@ const SHALOM_DEFAULT = {
 };
 
 const STORAGE_KEY = "shalom-content";
+const MEDIA_WIDTHS = Object.freeze({
+  thumb: 480,
+  card: 640,
+  tile: 720,
+  content: 960,
+  hero: 1200,
+  full: 1600,
+});
 
 function readStoredContent() {
   try {
@@ -610,20 +621,52 @@ function readStoredContent() {
   }
 }
 
-async function loadContent() {
-  let best = structuredClone(SHALOM_DEFAULT);
-  const local = readStoredContent();
-  if (local && local.packages && (local.revision || 0) >= (best.revision || 0)) best = local;
-  for (const url of ["/api/content", "data/content.json"]) {
-    try {
-      const response = await fetch(url, { cache: "no-store", credentials: "same-origin" });
-      if (!response.ok) continue;
-      const file = await response.json();
-      if (file && file.packages && (file.revision || 0) >= (best.revision || 0)) best = file;
-    } catch (error) {
-      /* Optional until the first save. */
-    }
+function mediaUrl(src, width) {
+  const value = String(src || "").trim();
+  if (!value || value.startsWith("data:") || value.startsWith("blob:")) return value;
+  if (/^https?:\/\//i.test(value)) return value;
+  const size = Number(width) || 0;
+  if (!size || !value.startsWith("assets/")) return value;
+  return `/media?src=${encodeURIComponent(value)}&w=${size}`;
+}
+
+function bindImage(image, src, options = {}) {
+  if (!image) return image;
+  const width = options.width || 0;
+  const url = mediaUrl(src, width);
+  image.alt = options.alt != null ? options.alt : image.alt || "";
+  image.decoding = options.decoding || "async";
+  if (options.priority) {
+    image.loading = "eager";
+    image.fetchPriority = "high";
+  } else {
+    image.loading = options.lazy === false ? "eager" : "lazy";
+    if ("fetchPriority" in image) image.fetchPriority = "auto";
   }
+  if (options.widthAttr) image.width = options.widthAttr;
+  if (options.heightAttr) image.height = options.heightAttr;
+  if (url && image.dataset.src !== url) {
+    image.classList.add("is-media-loading");
+    const settle = () => image.classList.remove("is-media-loading");
+    image.addEventListener("load", settle, { once: true });
+    image.addEventListener("error", settle, { once: true });
+    image.dataset.src = url;
+    image.src = url;
+    if (image.complete && image.naturalWidth) settle();
+  } else if (!url) {
+    image.removeAttribute("src");
+    image.classList.remove("is-media-loading");
+  }
+  return image;
+}
+
+function createImage(src, options = {}) {
+  const image = document.createElement("img");
+  if (options.className) image.className = options.className;
+  return bindImage(image, src, options);
+}
+
+function normalizeContent(best) {
   best.packages = (best.packages || []).map((pkg) => createPaquete(pkg));
   best.template = createPaquete(best.template || SHALOM_DEFAULT.template);
   best.capillas = (Array.isArray(best.capillas) ? best.capillas : SHALOM_DEFAULT.capillas).map((item) => createCapilla(item));
@@ -677,8 +720,74 @@ async function loadContent() {
   const aboutMerged = { ...SHALOM_DEFAULT.inicio.about, ...(best.inicio.about || {}) };
   delete aboutMerged.eyebrow;
   best.inicio.about = aboutMerged;
+  best.inicio.contact = normalizeContact(best.inicio.contact || {});
   best.paquetes = { ...SHALOM_DEFAULT.paquetes, ...(best.paquetes || {}) };
   return best;
+}
+
+function contactPhoneHref(phone, href) {
+  const explicit = String(href || "").trim();
+  if (explicit) return explicit;
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (!digits) return "tel:+523313383886";
+  if (digits.length === 10) return `tel:+52${digits}`;
+  if (digits.startsWith("52")) return `tel:+${digits}`;
+  return `tel:+${digits}`;
+}
+
+function normalizeContact(input = {}) {
+  const defaults = SHALOM_DEFAULT.inicio.contact;
+  const next = { ...defaults, ...input };
+  let lede = String(next.lede || "");
+  let phone = String(next.phone || "").trim();
+  if (!phone && lede) {
+    const match = lede.match(/(?:Tel\.?\s*atención inmediata:\s*)?(\+?\d[\d\s.-]{7,}\d)/i);
+    if (match) {
+      phone = match[1].replace(/\s+/g, " ").trim();
+      lede = lede.replace(/(?:Tel\.?\s*atención inmediata:\s*)?\+?\d[\d\s.-]{7,}\d\.?/i, "").trim();
+    }
+  }
+  next.lede = lede || defaults.lede;
+  next.phone = phone || defaults.phone;
+  next.phoneLabel = String(next.phoneLabel || defaults.phoneLabel || "Atención inmediata").trim();
+  next.phoneHref = contactPhoneHref(next.phone, next.phoneHref);
+  next.points = Array.isArray(next.points) ? next.points : [];
+  return next;
+}
+
+async function fetchContentFile(url) {
+  try {
+    const response = await fetch(url, { cache: "no-store", credentials: "same-origin" });
+    if (!response.ok) return null;
+    const file = await response.json();
+    if (file && file.packages) return file;
+  } catch (error) {
+    /* Optional until the first save. */
+  }
+  return null;
+}
+
+async function loadContent(options = {}) {
+  const preferLocal = Boolean(options.preferLocal);
+  let best = null;
+
+  if (preferLocal) {
+    best = structuredClone(SHALOM_DEFAULT);
+    const local = readStoredContent();
+    if (local && local.packages && (local.revision || 0) >= (best.revision || 0)) best = local;
+    for (const url of ["/api/content", "data/content.json"]) {
+      const file = await fetchContentFile(url);
+      if (file && (file.revision || 0) >= (best.revision || 0)) best = file;
+    }
+  } else {
+    best =
+      (await fetchContentFile("/api/content")) ||
+      (await fetchContentFile("data/content.json")) ||
+      readStoredContent() ||
+      structuredClone(SHALOM_DEFAULT);
+  }
+
+  return normalizeContent(best);
 }
 
 async function saveContent(content) {
@@ -733,4 +842,8 @@ window.ShalomModel = {
   loadContent,
   saveContent,
   readStoredContent,
+  mediaUrl,
+  bindImage,
+  createImage,
+  MEDIA_WIDTHS,
 };

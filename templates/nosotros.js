@@ -49,31 +49,21 @@ ShalomTemplates.define({
         const card = el("article", "nosotros-card");
         card.dataset.articuloId = item.id || "";
 
-        const images = item.images || [];
-        if (images.length) {
+        const cover = (item.images || [])[0];
+        if (cover?.src) {
           const media = el("div", "nosotros-card-media");
-          if (images.length === 1) {
-            const img = document.createElement("img");
-            img.className = "nosotros-card-cover";
-            img.src = images[0].src;
-            img.alt = images[0].alt || item.title || "";
-            img.loading = "lazy";
-            media.append(img);
-          } else {
-            const gallery = el("div", "nosotros-card-gallery");
-            images.forEach((image, index) => {
-              const figure = el("figure", "nosotros-card-shot");
-              const img = document.createElement("img");
-              if (index === 0) img.className = "nosotros-card-cover";
-              img.src = image.src;
-              img.alt = image.alt || item.title || "";
-              img.loading = "lazy";
-              figure.append(img);
-              gallery.append(figure);
-            });
-            media.append(gallery);
-          }
+          media.append(
+            window.ShalomModel.createImage(cover.src, {
+              className: "nosotros-card-cover",
+              alt: cover.alt || item.title || "",
+              width: window.ShalomModel.MEDIA_WIDTHS.hero,
+              lazy: false,
+              priority: true,
+            })
+          );
           card.append(media);
+        } else {
+          card.classList.add("is-text-only");
         }
 
         const copy = el("div", "nosotros-card-copy");

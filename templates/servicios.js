@@ -17,13 +17,14 @@ ShalomTemplates.define({
   render(root, state, mode) {
     const { el, text, imageFrame } = ShalomTemplates;
     const page = state.servicios || window.SHALOM_DEFAULT?.servicios || {};
-    const catalog = (state.serviciosCatalog || []).filter((item) => !item.hidden);
     const article = el("article", "page page-nosotros page-servicios");
 
     const close = el("section", "nosotros-close");
     if (page.mapImage || mode.edit) {
       close.append(
-        imageFrame("figure", "nosotros-map", "servicios.mapImage", page.mapImage, page.mapAlt, "servicios.mapAlt")
+        imageFrame("figure", "nosotros-map", "servicios.mapImage", page.mapImage, page.mapAlt, "servicios.mapAlt", {
+          width: window.ShalomModel.MEDIA_WIDTHS.content,
+        })
       );
     }
     const closeCopy = el("div", "nosotros-close-copy");
@@ -34,62 +35,84 @@ ShalomTemplates.define({
     );
     close.append(closeCopy);
 
-    const catalogSection = el("section", "servicios-catalog");
-    const catalogHead = el("header", "servicios-catalog-head");
-    if (page.catalogEyebrow || mode.edit) {
-      catalogHead.append(
-        text("p", "eyebrow", "servicios.catalogEyebrow", page.catalogEyebrow || "Servicios")
-      );
+    const incluye = state.inicio?.incluye || window.SHALOM_DEFAULT?.inicio?.incluye || {};
+    const chapels = (state.capillas || []).filter((item) => !item.hidden);
+    const chapelSection = el("section", "coaches servicios-chapels");
+    const chapelHead = el("div", "section-head");
+    if (incluye.eyebrow || mode.edit) {
+      const eyebrow = text("p", "eyebrow", "inicio.incluye.eyebrow", incluye.eyebrow || "");
+      if (!incluye.eyebrow && !mode.edit) eyebrow.hidden = true;
+      chapelHead.append(eyebrow);
     }
-    catalogHead.append(
-      text("h2", "", "servicios.catalogTitle", page.catalogTitle || "Nuestros servicios", {
+    chapelHead.append(
+      text("h2", "", "inicio.incluye.title", incluye.title || "Capillas y servicios a domicilio", {
         multiline: true,
       })
     );
-    if (page.catalogLede || mode.edit) {
-      catalogHead.append(
-        text("p", "lede", "servicios.catalogLede", page.catalogLede || "", { multiline: true })
+    const scroller = el("div", "scroller chapel-scroller");
+    scroller.tabIndex = 0;
+    scroller.setAttribute("aria-label", "Capillas y servicios");
+    chapels.forEach((item) => {
+      const card = el("article", `chapel-card${mode.edit ? " is-readonly" : ""}`);
+      if (!mode.edit) card.dataset.href = `#/${item.id}`;
+      const photo = el("div", "chapel-card-photo");
+      photo.append(
+        window.ShalomModel.createImage(item.image, {
+          alt: item.alt || item.name,
+          width: window.ShalomModel.MEDIA_WIDTHS.card,
+        })
       );
-    }
-
-    const grid = el("div", "servicios-catalog-grid");
-    catalog.forEach((item) => {
-      const card = el(mode.edit ? "article" : "a", `servicios-catalog-card${mode.edit ? " is-readonly" : ""}`);
-      if (!mode.edit) card.href = `#/${item.id}`;
-
-      const photo = el("figure", "servicios-catalog-photo");
-      const image = document.createElement("img");
-      image.src = item.image || "assets/capilla-1.jpg";
-      image.alt = item.alt || item.name || "Servicio";
-      photo.append(image);
-
-      const body = el("div", "servicios-catalog-body");
+      const body = el("div", "chapel-card-body");
       const name = el("h3");
-      name.textContent = item.name || "";
-      const place = el("p", "servicios-catalog-place");
+      name.textContent = item.name;
+      const place = el("p", "chapel-card-place");
       place.textContent = [item.colonia, item.municipio].filter(Boolean).join(" · ");
-      const cta = el("span", "servicios-catalog-cta");
-      cta.textContent = item.cta || "Conocer más";
-      body.append(name);
-      if (place.textContent) body.append(place);
-      body.append(cta);
-      card.append(photo, body);
-      grid.append(card);
+      body.append(name, place);
+      const cardCta = el(mode.edit ? "span" : "a", "chapel-card-cta");
+      if (!mode.edit) cardCta.href = `#/${item.id}`;
+      cardCta.textContent = item.cta || "Contratar";
+      card.append(photo, body, cardCta);
+      scroller.append(card);
     });
-
-    if (catalog.length || mode.edit) {
-      catalogSection.append(catalogHead);
-      if (mode.edit) {
-        const note = el("p", "editor-note");
-        note.textContent = "Los servicios de esta sección se editan en el menú Servicios del admin.";
-        catalogSection.append(note);
-      }
-      if (catalog.length) catalogSection.append(grid);
-      else {
-        const empty = el("p", "editor-note");
-        empty.textContent = "Aún no hay servicios visibles. Créelos en el menú Servicios.";
-        catalogSection.append(empty);
-      }
+    const moreCard = el("article", `chapel-card is-more-services${mode.edit ? " is-readonly" : ""}`);
+    if (!mode.edit) {
+      moreCard.dataset.action = "more-services";
+      moreCard.setAttribute("role", "button");
+      moreCard.tabIndex = 0;
+    }
+    moreCard.setAttribute("aria-label", "Más servicios");
+    const moreIcon = el("span", "more-services-icon");
+    moreIcon.setAttribute("aria-hidden", "true");
+    moreIcon.innerHTML =
+      '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+    const moreTitle = el("h3");
+    moreTitle.textContent = "Más servicios";
+    moreCard.append(moreIcon, moreTitle);
+    scroller.append(moreCard);
+    chapelSection.append(chapelHead, scroller);
+    if (!mode.edit) {
+      const dialog = document.createElement("dialog");
+      dialog.className = "modal more-services-modal";
+      dialog.setAttribute("aria-label", "Más servicios");
+      const panel = el("article");
+      const modalHead = el("header", "more-services-modal-head");
+      const modalTitle = el("h3");
+      modalTitle.textContent = "Más servicios";
+      const closeBtn = el("button", "icon-btn more-services-modal-close");
+      closeBtn.type = "button";
+      closeBtn.setAttribute("aria-label", "Cerrar");
+      closeBtn.innerHTML =
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+      modalHead.append(modalTitle, closeBtn);
+      const list = el("div", "more-services-list");
+      panel.append(modalHead, list);
+      dialog.append(panel);
+      chapelSection.append(dialog);
+    }
+    if (mode.edit) {
+      const note = el("p", "editor-note");
+      note.textContent = "Las capillas de este carrusel se editan en Capillas. El título se comparte con Inicio.";
+      chapelSection.append(note);
     }
 
     const cta = el("div", "nosotros-cta");
@@ -178,9 +201,7 @@ ShalomTemplates.define({
     dialog.append(panel);
     comments.append(commentsHead, list, openWrap, dialog);
 
-    article.append(close);
-    if (catalogSection.childElementCount) article.append(catalogSection);
-    article.append(cta, comments);
+    article.append(close, chapelSection, cta, comments);
     root.append(article);
   },
 });
