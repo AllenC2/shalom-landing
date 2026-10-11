@@ -35,11 +35,15 @@ ShalomTemplates.define({
     const media = el("figure", "articulo-hero-media");
     const cover = articulo.images?.[0];
     if (cover?.src) {
-      const img = document.createElement("img");
-      img.className = "articulo-cover";
-      img.src = cover.src;
-      img.alt = cover.alt || articulo.title || "";
-      media.append(img);
+      media.append(
+        window.ShalomModel.createImage(cover.src, {
+          className: "articulo-cover",
+          alt: cover.alt || articulo.title || "",
+          width: window.ShalomModel.MEDIA_WIDTHS.hero,
+          lazy: false,
+          priority: true,
+        })
+      );
     }
     hero.append(media);
 
@@ -63,11 +67,12 @@ ShalomTemplates.define({
       const grid = el("div", "articulo-gallery");
       gallery.forEach((image) => {
         const figure = el("figure", "articulo-gallery-item");
-        const img = document.createElement("img");
-        img.src = image.src;
-        img.alt = image.alt || articulo.title || "";
-        img.loading = "lazy";
-        figure.append(img);
+        figure.append(
+          window.ShalomModel.createImage(image.src, {
+            alt: image.alt || articulo.title || "",
+            width: window.ShalomModel.MEDIA_WIDTHS.content,
+          })
+        );
         grid.append(figure);
       });
       page.append(grid);

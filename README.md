@@ -36,6 +36,8 @@ El correo de contacto y la API key de Resend se configuran desde el admin (engra
 - Páginas públicas: Inicio, Paquetes, Servicios, Nosotros (artículos tipo Reels)
 - Admin: Páginas, Paquetes, Capillas, Artículos, Comentarios (moderación)
 - Subida de imágenes optimizadas a WebP con Sharp
+- Redimensionado bajo demanda (`/media?src=…&w=640`) con caché en `data/media-cache/`
+- Assets con caché HTTP; la API sigue en `no-store`
 - Comentarios públicos con aprobación desde el admin
 
 ## Docker
@@ -54,4 +56,4 @@ docker compose up --build -d
 2. `npm ci --omit=dev`
 3. `npm start` (escucha en `0.0.0.0:$PORT`)
 
-Asegúrate de que los directorios `data/` y `assets/uploads/` sean escribibles en producción.
+Asegúrate de que los directorios `data/`, `data/media-cache/` y `assets/uploads/` sean escribibles en producción.

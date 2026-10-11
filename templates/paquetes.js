@@ -66,10 +66,12 @@ ShalomTemplates.define({
       blurb.textContent = pkg.blurb;
 
       const photo = el("div", "photo");
-      const image = document.createElement("img");
-      image.src = pkg.image;
-      image.alt = pkg.alt || pkg.name;
-      photo.append(image);
+      photo.append(
+        window.ShalomModel.createImage(pkg.image, {
+          alt: pkg.alt || pkg.name,
+          width: window.ShalomModel.MEDIA_WIDTHS.card,
+        })
+      );
 
       if (!mode.edit) {
         const more = el("a", "more");
