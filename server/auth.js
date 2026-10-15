@@ -4,6 +4,9 @@ import { readAdminData, writeAdminData } from "./settings.js";
 
 const COOKIE = "shalom_session";
 const MAX_AGE = 60 * 60 * 24 * 14;
+const loginHits = new Map();
+const LOGIN_WINDOW_MS = 60_000;
+const LOGIN_MAX_HITS = 8;
 
 function requireEnv(name) {
   const value = process.env[name];
@@ -11,11 +14,38 @@ function requireEnv(name) {
   return value;
 }
 
+function clientIp(c) {
+  const forwarded = c.req.header("x-forwarded-for");
+  if (forwarded) return forwarded.split(",")[0].trim();
+  return c.req.header("x-real-ip") || "local";
+}
+
+export function checkLoginRateLimit(c) {
+  const ip = clientIp(c);
+  const now = Date.now();
+  const row = loginHits.get(ip) || { count: 0, start: now };
+  if (now - row.start > LOGIN_WINDOW_MS) {
+    loginHits.set(ip, { count: 1, start: now });
+    return { ok: true };
+  }
+  row.count += 1;
+  loginHits.set(ip, row);
+  if (row.count > LOGIN_MAX_HITS) {
+    return { ok: false, error: "Demasiados intentos. Espere un minuto." };
+  }
+  return { ok: true };
+}
+
 export function authConfig() {
+  const secret = process.env.SESSION_SECRET || "";
+  const weak =
+    !secret ||
+    secret === "dev-only-change-me" ||
+    secret === "change-me-to-a-long-random-string";
   return {
     user: process.env.ADMIN_USER || "admin",
     passwordHash: process.env.ADMIN_PASSWORD_HASH || "",
-    secret: process.env.SESSION_SECRET || "dev-only-change-me",
+    secret: weak && process.env.NODE_ENV !== "production" ? "dev-only-change-me" : secret,
     secure: process.env.NODE_ENV === "production",
   };
 }

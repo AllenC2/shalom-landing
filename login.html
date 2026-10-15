@@ -30,7 +30,9 @@
     <script>
       const form = document.querySelector("#login-form");
       const error = document.querySelector("#login-error");
-      const next = new URLSearchParams(location.search).get("next") || "/admin";
+      const rawNext = new URLSearchParams(location.search).get("next") || "/admin";
+      const next =
+        rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/admin";
 
       fetch("/api/me", { credentials: "same-origin" })
         .then((response) => {
@@ -55,7 +57,7 @@
           error.hidden = false;
           return;
         }
-        location.replace(next.startsWith("/") ? next : "/admin");
+        location.replace(next);
       });
     </script>
   </body>

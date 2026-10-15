@@ -5,7 +5,15 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 import sharp from "sharp";
-import { clearSession, changePassword, readSession, requireAdmin, verifyLogin, writeSession } from "./auth.js";
+import {
+  clearSession,
+  changePassword,
+  checkLoginRateLimit,
+  readSession,
+  requireAdmin,
+  verifyLogin,
+  writeSession,
+} from "./auth.js";
 import { listTemplates, readContent, ROOT, writeContent } from "./content.js";
 import { getPublicMailSettings, setMailSettings } from "./settings.js";
 import { checkContactRateLimit, parseContactPayload, sendContactEmail } from "./mail.js";
@@ -28,6 +36,51 @@ import { serveResizedMedia } from "./media.js";
 const PORT = Number(process.env.PORT || 3000);
 const UPLOADS = path.join(ROOT, "assets", "uploads");
 const app = new Hono();
+
+if (process.env.NODE_ENV === "production") {
+  const secret = process.env.SESSION_SECRET || "";
+  if (!secret || secret === "dev-only-change-me" || secret === "change-me-to-a-long-random-string") {
+    throw new Error("SESSION_SECRET must be a strong unique value in production");
+  }
+}
+
+/** Paths that must never be served as static files. */
+const BLOCKED_PREFIXES = ["/server", "/data", "/docs", "/.git", "/.archify"];
+
+const BLOCKED_EXACT = new Set([
+  "/.env",
+  "/.env.example",
+  "/.env.local",
+  "/.env.production",
+  "/package.json",
+  "/package-lock.json",
+  "/Dockerfile",
+  "/docker-compose.yml",
+  "/.dockerignore",
+  "/.gitignore",
+  "/.npmrc",
+  "/README.md",
+]);
+
+const ADMIN_NODE_MODULES = [
+  "/node_modules/chart.js/",
+  "/node_modules/chartjs-plugin-datalabels/",
+];
+
+app.use("*", async (c, next) => {
+  const pathname = new URL(c.req.url).pathname;
+  if (BLOCKED_EXACT.has(pathname) || pathname.startsWith("/.")) {
+    return c.notFound();
+  }
+  if (BLOCKED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
+    return c.notFound();
+  }
+  if (pathname === "/node_modules" || pathname.startsWith("/node_modules/")) {
+    const allowed = ADMIN_NODE_MODULES.some((prefix) => pathname.startsWith(prefix));
+    if (!allowed) return c.notFound();
+  }
+  return next();
+});
 
 app.use("/api/*", async (c, next) => {
   await next();
@@ -54,6 +107,9 @@ app.get("/api/me", async (c) => {
 });
 
 app.post("/api/login", async (c) => {
+  const limited = checkLoginRateLimit(c);
+  if (!limited.ok) return c.json({ error: limited.error }, 429);
+
   const body = await c.req.json().catch(() => ({}));
   const username = String(body.username || "");
   const password = String(body.password || "");
@@ -212,13 +268,27 @@ app.get("/login", async (c) => {
 app.get("/admin.html", (c) => c.redirect("/admin", 301));
 app.get("/login.html", (c) => {
   const next = new URL(c.req.url).searchParams.get("next");
-  return c.redirect(next ? `/login?next=${encodeURIComponent(next)}` : "/login", 301);
+  const safe =
+    typeof next === "string" && next.startsWith("/") && !next.startsWith("//")
+      ? next
+      : "";
+  return c.redirect(safe ? `/login?next=${encodeURIComponent(safe)}` : "/login", 301);
 });
 
 app.use("/admin.js", requireAdmin);
-app.use("/vendor/html2canvas.min.js", requireAdmin);
+app.use("/admin.css", requireAdmin);
+app.use("/vendor/*", requireAdmin);
+app.use("/node_modules/chart.js/*", requireAdmin);
+app.use("/node_modules/chartjs-plugin-datalabels/*", requireAdmin);
 
-app.use("/*", serveStatic({ root: "./" }));
+// Public site assets only — sensitive trees are blocked above.
+app.use(
+  "/*",
+  serveStatic({
+    root: "./",
+    rewriteRequestPath: (p) => p,
+  }),
+);
 
 app.notFound(async (c) => {
   try {
